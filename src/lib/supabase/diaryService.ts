@@ -1,0 +1,390 @@
+'use client'
+
+import { createClient } from '@/lib/supabase/client'
+import type { Diary, DiaryLayer, User } from '@/features/diary/types'
+import { mockUsers } from '@/features/diary/mockData'
+import { WRITER_COLORS } from '@/features/diary/types'
+
+// ===== 색상 기본값 (가입 순서대로 배정) =====
+
+const COLOR_DEFAULTS = [
+  { bg: 'bg-amber-100', text: 'text-amber-800', ring: 'ring-amber-400' },
+  { bg: 'bg-violet-200', text: 'text-violet-800', ring: 'ring-violet-400' },
+  { bg: 'bg-orange-200', text: 'text-orange-800', ring: 'ring-orange-500' },
+  { bg: 'bg-teal-100', text: 'text-teal-800', ring: 'ring-teal-400' },
+  { bg: 'bg-pink-100', text: 'text-pink-800', ring: 'ring-pink-400' },
+]
+
+// DB에서 불러온 프로필로 mockUsers, WRITER_COLORS를 업데이트
+// → getAvatarStyle, getInitial, getUserById 등 기존 헬퍼 함수들이 실제 데이터로 작동하게 됨
+function syncProfilesLocally(profiles: User[]) {
+  mockUsers.splice(0, mockUsers.length, ...profiles)
+  profiles.forEach((user, index) => {
+    if (!WRITER_COLORS[user.id]) {
+      WRITER_COLORS[user.id] = COLOR_DEFAULTS[index % COLOR_DEFAULTS.length]
+    }
+  })
+}
+
+// ===== 이미지 처리 =====
+
+// data URL(base64)을 Blob으로 변환
+function dataUrlToBlob(dataUrl: string): Blob {
+  const [header, base64Data] = dataUrl.split(',')
+  const mimeMatch = header.match(/:(.*?);/)
+  const mime = mimeMatch ? mimeMatch[1] : 'image/png'
+  const binary = atob(base64Data)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i)
+  }
+  return new Blob([bytes], { type: mime })
+}
+
+// Canvas 이미지를 Supabase Storage에 업로드
+// 반환값: 저장 경로 (예: "user-uuid/1714000000000.png")
+export async function uploadCanvasImage(dataUrl: string, userId: string): Promise<string> {
+  const supabase = createClient()
+  const blob = dataUrlToBlob(dataUrl)
+  const path = `${userId}/${Date.now()}.png`
+
+  const { error } = await supabase.storage
+    .from('diary-images')
+    .upload(path, blob, { contentType: 'image/png', upsert: false })
+
+  if (error) throw new Error(`이미지 업로드 실패: ${error.message}`)
+  return path
+}
+
+// 저장 경로 배열 → signed URL 맵 (1년 유효)
+async function pathsToSignedUrls(paths: string[]): Promise<Record<string, string>> {
+  if (paths.length === 0) return {}
+  const supabase = createClient()
+  const { data } = await supabase.storage
+    .from('diary-images')
+    .createSignedUrls(paths, 60 * 60 * 24 * 365)
+
+  const map: Record<string, string> = {}
+  for (const item of data || []) {
+    if (item.signedUrl && item.path) map[item.path] = item.signedUrl
+  }
+  return map
+}
+
+// ===== DB row 타입 → User 타입 변환 =====
+
+type ProfileRow = {
+  id: string
+  email: string
+  display_name: string
+  custom_initial: string | null
+  custom_color_bg: string | null
+  custom_color_text: string | null
+  created_at: string
+}
+
+function rowToUser(row: ProfileRow): User {
+  return {
+    id: row.id,
+    email: row.email,
+    displayName: row.display_name,
+    avatarUrl: '',
+    createdAt: row.created_at,
+    customInitial: row.custom_initial || undefined,
+    customColor:
+      row.custom_color_bg && row.custom_color_text
+        ? { bg: row.custom_color_bg, text: row.custom_color_text }
+        : undefined,
+  }
+}
+
+// ===== 프로필 =====
+
+export async function getMyProfile(userId: string): Promise<User | null> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', userId)
+    .single()
+
+  if (error || !data) return null
+  return rowToUser(data as ProfileRow)
+}
+
+export async function getAllProfiles(): Promise<User[]> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .order('created_at', { ascending: true })
+
+  if (error || !data) return []
+  const profiles = (data as ProfileRow[]).map(rowToUser)
+  syncProfilesLocally(profiles)
+  return profiles
+}
+
+export async function updateProfile(
+  userId: string,
+  updates: {
+    displayName?: string
+    customInitial?: string
+    customColor?: { bg: string; text: string } | null
+  }
+): Promise<void> {
+  const supabase = createClient()
+  const patch: Record<string, string | null> = {}
+
+  if (updates.displayName !== undefined) patch.display_name = updates.displayName
+  if ('customInitial' in updates) patch.custom_initial = updates.customInitial || null
+  if ('customColor' in updates) {
+    patch.custom_color_bg = updates.customColor?.bg ?? null
+    patch.custom_color_text = updates.customColor?.text ?? null
+  }
+
+  const { error } = await supabase.from('profiles').update(patch).eq('id', userId)
+  if (error) throw new Error(`프로필 업데이트 실패: ${error.message}`)
+}
+
+// ===== 일기 목록 =====
+
+export async function getSortedDiaries(userId: string): Promise<Diary[]> {
+  const supabase = createClient()
+
+  // 프로필 동기화 (getAvatarStyle 등이 실제 데이터로 작동하도록)
+  await getAllProfiles()
+
+  const { data: diaryRows, error: diaryError } = await supabase
+    .from('diaries')
+    .select('*')
+    .order('last_edited_at', { ascending: false })
+
+  if (diaryError || !diaryRows || diaryRows.length === 0) return []
+
+  const diaryIds = diaryRows.map((d) => d.id)
+
+  const [{ data: layerRows }, { data: readRows }] = await Promise.all([
+    supabase
+      .from('diary_layers')
+      .select('*')
+      .in('diary_id', diaryIds)
+      .order('layer_order', { ascending: true }),
+    supabase
+      .from('diary_reads')
+      .select('diary_id, read_layer_count')
+      .eq('user_id', userId),
+  ])
+
+  const readMap: Record<string, number> = {}
+  for (const row of readRows || []) {
+    readMap[row.diary_id] = row.read_layer_count
+  }
+
+  const allPaths = (layerRows || []).map((l) => l.image_url)
+  const signedUrlMap = await pathsToSignedUrls(allPaths)
+
+  // 일기별 레이어 그룹화
+  type LayerRow = { diary_id: string; image_url: string; editor_id: string; edited_at: string }
+  const layersByDiary: Record<string, LayerRow[]> = {}
+  for (const layer of (layerRows || []) as LayerRow[]) {
+    if (!layersByDiary[layer.diary_id]) layersByDiary[layer.diary_id] = []
+    layersByDiary[layer.diary_id].push(layer)
+  }
+
+  return diaryRows.map((d) => {
+    const layers = layersByDiary[d.id] || []
+    const totalLayers = layers.length
+    const unreadEdits = Math.max(0, totalLayers - (readMap[d.id] || 0))
+
+    const diaryLayers: DiaryLayer[] = layers.map((l) => ({
+      imageDataUrl: signedUrlMap[l.image_url] || l.image_url,
+      editorId: l.editor_id,
+      editedAt: l.edited_at,
+    }))
+
+    const editors: string[] = []
+    for (const l of layers) {
+      if (!editors.includes(l.editor_id)) editors.push(l.editor_id)
+    }
+
+    return {
+      id: d.id,
+      title: d.title,
+      layers: diaryLayers,
+      createdBy: d.created_by,
+      lastEditedBy: d.last_edited_by,
+      editors,
+      unreadEdits,
+      createdAt: d.created_at,
+      lastEditedAt: d.last_edited_at,
+    }
+  })
+}
+
+export async function getDiaryById(diaryId: string, userId: string): Promise<Diary | null> {
+  const supabase = createClient()
+
+  // 프로필 동기화
+  await getAllProfiles()
+
+  const { data: d, error } = await supabase
+    .from('diaries')
+    .select('*')
+    .eq('id', diaryId)
+    .single()
+
+  if (error || !d) return null
+
+  const [{ data: layerRows }, { data: readRow }] = await Promise.all([
+    supabase
+      .from('diary_layers')
+      .select('*')
+      .eq('diary_id', diaryId)
+      .order('layer_order', { ascending: true }),
+    supabase
+      .from('diary_reads')
+      .select('read_layer_count')
+      .eq('diary_id', diaryId)
+      .eq('user_id', userId)
+      .single(),
+  ])
+
+  type LayerRow = { image_url: string; editor_id: string; edited_at: string }
+  const layers = (layerRows || []) as LayerRow[]
+  const paths = layers.map((l) => l.image_url)
+  const signedUrlMap = await pathsToSignedUrls(paths)
+
+  const diaryLayers: DiaryLayer[] = layers.map((l) => ({
+    imageDataUrl: signedUrlMap[l.image_url] || l.image_url,
+    editorId: l.editor_id,
+    editedAt: l.edited_at,
+  }))
+
+  const editors: string[] = []
+  for (const l of layers) {
+    if (!editors.includes(l.editor_id)) editors.push(l.editor_id)
+  }
+
+  return {
+    id: d.id,
+    title: d.title,
+    layers: diaryLayers,
+    createdBy: d.created_by,
+    lastEditedBy: d.last_edited_by,
+    editors,
+    unreadEdits: Math.max(0, layers.length - ((readRow as { read_layer_count: number } | null)?.read_layer_count || 0)),
+    createdAt: d.created_at,
+    lastEditedAt: d.last_edited_at,
+  }
+}
+
+// ===== 일기 저장 =====
+
+export async function createDiary(
+  title: string,
+  imageDataUrl: string,
+  userId: string
+): Promise<string | null> {
+  const supabase = createClient()
+
+  const imagePath = await uploadCanvasImage(imageDataUrl, userId)
+
+  const { data: diary, error: diaryError } = await supabase
+    .from('diaries')
+    .insert({ title, created_by: userId, last_edited_by: userId })
+    .select('id')
+    .single()
+
+  if (diaryError || !diary) return null
+
+  const { error: layerError } = await supabase
+    .from('diary_layers')
+    .insert({ diary_id: diary.id, editor_id: userId, image_url: imagePath, layer_order: 0 })
+
+  if (layerError) return null
+  return diary.id
+}
+
+export async function appendLayer(
+  diaryId: string,
+  imageDataUrl: string,
+  userId: string,
+  currentLayerCount: number
+): Promise<void> {
+  const supabase = createClient()
+
+  const imagePath = await uploadCanvasImage(imageDataUrl, userId)
+
+  const { error: layerError } = await supabase.from('diary_layers').insert({
+    diary_id: diaryId,
+    editor_id: userId,
+    image_url: imagePath,
+    layer_order: currentLayerCount,
+  })
+
+  if (layerError) throw new Error(`레이어 추가 실패: ${layerError.message}`)
+
+  const { error: diaryError } = await supabase
+    .from('diaries')
+    .update({ last_edited_by: userId, last_edited_at: new Date().toISOString() })
+    .eq('id', diaryId)
+
+  if (diaryError) throw new Error(`일기 업데이트 실패: ${diaryError.message}`)
+}
+
+export async function markDiaryAsRead(
+  diaryId: string,
+  userId: string,
+  layerCount: number
+): Promise<void> {
+  const supabase = createClient()
+  await supabase
+    .from('diary_reads')
+    .upsert({ diary_id: diaryId, user_id: userId, read_layer_count: layerCount })
+}
+
+// ===== 통계 =====
+
+export type UserStats = {
+  diaryCount: number
+  layerCount: number
+  streakDays: number
+}
+
+export async function getUserStats(userId: string): Promise<UserStats> {
+  const supabase = createClient()
+
+  const [{ count: diaryCount }, { count: layerCount }, { data: myLayers }] = await Promise.all([
+    supabase
+      .from('diaries')
+      .select('id', { count: 'exact', head: true })
+      .eq('created_by', userId),
+    supabase
+      .from('diary_layers')
+      .select('id', { count: 'exact', head: true })
+      .eq('editor_id', userId)
+      .gt('layer_order', 0),
+    supabase.from('diary_layers').select('edited_at').eq('editor_id', userId),
+  ])
+
+  // 연속 기록 일수 계산
+  const activeDates = new Set<string>()
+  for (const layer of myLayers || []) {
+    activeDates.add((layer.edited_at as string).slice(0, 10))
+  }
+
+  let streakDays = 0
+  const checkDate = new Date()
+  while (true) {
+    const dateStr = checkDate.toISOString().slice(0, 10)
+    if (activeDates.has(dateStr)) {
+      streakDays++
+      checkDate.setDate(checkDate.getDate() - 1)
+    } else {
+      break
+    }
+  }
+
+  return { diaryCount: diaryCount || 0, layerCount: layerCount || 0, streakDays }
+}
