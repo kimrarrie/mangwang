@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useCallback, useMemo, useRef } from 'react'
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { mockDiaries } from '@/features/diary/mockData'
+import { useUser } from '@/features/auth/useUser'
+import { getSortedDiaries } from '@/lib/supabase/diaryService'
 import { getBookById } from '@/features/diary/seasonUtils'
 
 // 계절별 표지 색상
@@ -16,9 +17,24 @@ const COVER_COLORS: Record<string, { bg: string; text: string; sub: string }> = 
 export default function SlideshowPage() {
   const params = useParams()
   const router = useRouter()
+  const { user } = useUser()
   const bookId = params.bookId as string
 
-  const book = useMemo(() => getBookById(bookId, mockDiaries), [bookId])
+  const [diaries, setDiaries] = useState<Diary[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!user) return
+    const load = async () => {
+      setLoading(true)
+      const result = await getSortedDiaries(user.id)
+      setDiaries(result)
+      setLoading(false)
+    }
+    load()
+  }, [user?.id])
+
+  const book = useMemo(() => getBookById(bookId, diaries), [bookId, diaries])
 
   const [currentPage, setCurrentPage] = useState(0)
   const [prevPage, setPrevPage] = useState<number | null>(null)
@@ -82,6 +98,14 @@ export default function SlideshowPage() {
       else goPrev()              // 오른쪽으로 스와이프 → 이전
     }
   }, [goNext, goPrev])
+
+  if (loading) {
+    return (
+      <div className="fixed inset-0 bg-black flex items-center justify-center">
+        <p className="text-white/60 font-handwriting text-xl">불러오는 중...</p>
+      </div>
+    )
+  }
 
   if (!book) {
     return (

@@ -8,7 +8,7 @@ export default function LoginPage() {
       <div className="bg-white rounded-2xl shadow-md p-10 flex flex-col items-center gap-6 w-full max-w-sm">
         <h1 className="text-2xl font-bold text-gray-800">만남의 광장</h1>
         <p className="text-gray-500 text-sm text-center">
-          3명이 함께 만드는 교환일기
+          베레리향이 함께 만드는 일기장
         </p>
         <button
           onClick={() => signInWithGoogle()}

@@ -1,13 +1,28 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import DiaryBook from '@/components/ui/DiaryBook'
-import { mockDiaries } from '@/features/diary/mockData'
-import { groupDiariesByBook } from '@/features/diary/seasonUtils'
+import { useUser } from '@/features/auth/useUser'
+import { getSortedDiaries } from '@/lib/supabase/diaryService'
+import { groupDiariesByBook, type DiaryBook as DiaryBookType } from '@/features/diary/seasonUtils'
 
 export default function ArchivePage() {
   const router = useRouter()
-  const books = groupDiariesByBook(mockDiaries)
+  const { user } = useUser()
+  const [books, setBooks] = useState<DiaryBookType[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!user) return
+    const load = async () => {
+      setLoading(true)
+      const diaries = await getSortedDiaries(user.id)
+      setBooks(groupDiariesByBook(diaries))
+      setLoading(false)
+    }
+    load()
+  }, [user?.id])
 
   const handleMenuAction = (action: 'customize' | 'pdf') => {
     if (action === 'customize') {
@@ -36,7 +51,11 @@ export default function ArchivePage() {
 
       {/* 메인 콘텐츠 */}
       <main className="max-w-lg mx-auto px-5 py-6 pb-24">
-        {books.length > 0 ? (
+        {loading ? (
+          <div className="text-center py-20">
+            <p className="font-handwriting text-xl text-ink-700/40">불러오는 중...</p>
+          </div>
+        ) : books.length > 0 ? (
           <>
             <p className="font-handwriting text-lg text-ink-700/50 mb-5">
               {books.length}권의 일기장
