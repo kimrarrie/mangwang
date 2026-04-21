@@ -270,8 +270,11 @@ const DiaryCanvas = forwardRef<CanvasHandle, DiaryCanvasProps>(
       },
 
       toDataURL: async () => {
+        // 화질 개선: 2배 해상도로 내보내서 레티나/고해상도 화면에서도 선명하게 보이도록
+        const EXPORT_SCALE = 2
+
         if (!fabricRef.current || !hasBgLayers) {
-          return fabricRef.current?.toDataURL({ format: 'png', quality: 1 }) ?? null
+          return fabricRef.current?.toDataURL({ format: 'png', quality: 1, multiplier: EXPORT_SCALE }) ?? null
         }
 
         // 배경 레이어가 있으면: 모든 레이어 + Fabric 캔버스를 합성해서 내보내기
@@ -280,11 +283,16 @@ const DiaryCanvas = forwardRef<CanvasHandle, DiaryCanvasProps>(
         const width = container?.clientWidth || 430
         const height = container?.clientHeight || 750
 
+        // 내보낼 캔버스는 2배 크기 (선명도 향상)
         const exportCanvas = document.createElement('canvas')
-        exportCanvas.width = width
-        exportCanvas.height = height
+        exportCanvas.width = width * EXPORT_SCALE
+        exportCanvas.height = height * EXPORT_SCALE
         const ctx = exportCanvas.getContext('2d')
         if (!ctx) return null
+
+        // 이미지 스무딩 품질을 최대로 설정
+        ctx.imageSmoothingEnabled = true
+        ctx.imageSmoothingQuality = 'high'
 
         // 이미지 로드 헬퍼 (HTTP URL도 비동기로 안전하게 로드)
         const loadImage = (src: string): Promise<HTMLImageElement> =>
@@ -296,15 +304,17 @@ const DiaryCanvas = forwardRef<CanvasHandle, DiaryCanvasProps>(
             img.src = src
           })
 
-        // 1) 모든 배경 레이어를 비동기로 로드 후 순서대로 그리기
+        // 1) 모든 배경 레이어를 비동기로 로드 후 순서대로 그리기 (2배 크기로)
         const images = await Promise.all(backgroundLayers!.map(loadImage))
         for (const img of images) {
-          ctx.drawImage(img, 0, 0, width, height)
+          ctx.drawImage(img, 0, 0, width * EXPORT_SCALE, height * EXPORT_SCALE)
         }
 
-        // 2) Fabric 캔버스 내용을 위에 그리기
-        const fabricCanvas = fabricRef.current.lowerCanvasEl
-        ctx.drawImage(fabricCanvas, 0, 0, width, height)
+        // 2) Fabric 캔버스 내용을 고해상도로 가져와서 위에 그리기
+        // (fabric의 toDataURL로 2배 배율 이미지 얻은 뒤 그림)
+        const fabricDataUrl = fabricRef.current.toDataURL({ format: 'png', quality: 1, multiplier: EXPORT_SCALE })
+        const fabricImg = await loadImage(fabricDataUrl)
+        ctx.drawImage(fabricImg, 0, 0, width * EXPORT_SCALE, height * EXPORT_SCALE)
 
         return exportCanvas.toDataURL('image/png')
       },

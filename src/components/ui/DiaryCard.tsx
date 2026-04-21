@@ -46,16 +46,16 @@ export default function DiaryCard({ diary, onClick }: DiaryCardProps) {
           hasUnread ? `ring-2 ${lastEditorAvatar.ringClass}` : ''
         }`}
       >
-        {/* 일기 미리보기 이미지 — 상단 일부분만 잘라서 보여줌 */}
+        {/* 일기 미리보기 이미지 — 가운데 부분을 잘라서 보여줌 */}
         {lastLayerImage ? (
           <div className="w-full h-40 bg-paper-50 relative overflow-hidden rounded-t-lg">
-            {/* 모든 레이어를 겹쳐서 표시 (상단 정렬로 윗부분만 보임) */}
+            {/* 모든 레이어를 겹쳐서 표시 (가운데 정렬로 중앙부가 보임) */}
             {diary.layers.map((layer, index) => (
               <img
                 key={index}
                 src={layer.imageDataUrl}
                 alt=""
-                className="absolute inset-0 w-full h-auto object-cover object-top"
+                className="absolute inset-0 w-full h-full object-cover object-center"
               />
             ))}
           </div>
