@@ -333,6 +333,39 @@ export async function appendLayer(
   if (diaryError) throw new Error(`일기 업데이트 실패: ${diaryError.message}`)
 }
 
+// 일기 삭제 — 일기 + 모든 레이어 + Storage 이미지 + 읽음 기록까지 모두 정리
+export async function deleteDiary(diaryId: string): Promise<void> {
+  const supabase = createClient()
+
+  // 1) 이 일기에 속한 모든 레이어의 이미지 경로 수집
+  const { data: layers } = await supabase
+    .from('diary_layers')
+    .select('image_url')
+    .eq('diary_id', diaryId)
+
+  const imagePaths = (layers || []).map((l) => l.image_url)
+
+  // 2) Storage에서 이미지 파일 삭제
+  if (imagePaths.length > 0) {
+    const { error: storageError } = await supabase.storage
+      .from('diary-images')
+      .remove(imagePaths)
+    if (storageError) {
+      console.warn('이미지 삭제 일부 실패 (계속 진행):', storageError.message)
+    }
+  }
+
+  // 3) diary_reads 정리 (읽음 기록)
+  await supabase.from('diary_reads').delete().eq('diary_id', diaryId)
+
+  // 4) diary_layers 정리 (레이어들)
+  await supabase.from('diary_layers').delete().eq('diary_id', diaryId)
+
+  // 5) 마지막으로 diaries 본체 삭제
+  const { error } = await supabase.from('diaries').delete().eq('id', diaryId)
+  if (error) throw new Error(`일기 삭제 실패: ${error.message}`)
+}
+
 export async function markDiaryAsRead(
   diaryId: string,
   userId: string,

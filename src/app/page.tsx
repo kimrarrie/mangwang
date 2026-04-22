@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import DiaryCard from '@/components/ui/DiaryCard'
 import { getInitial, getAvatarStyle } from '@/features/diary/mockData'
 import { useUser } from '@/features/auth/useUser'
-import { getSortedDiaries } from '@/lib/supabase/diaryService'
+import { getSortedDiaries, deleteDiary } from '@/lib/supabase/diaryService'
 import type { Diary } from '@/features/diary/types'
 
 export default function HomePage() {
@@ -13,6 +13,10 @@ export default function HomePage() {
   const { user } = useUser()
   const [diaries, setDiaries] = useState<Diary[]>([])
   const [loading, setLoading] = useState(true)
+
+  // 삭제 확인 모달 상태
+  const [diaryToDelete, setDiaryToDelete] = useState<Diary | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   useEffect(() => {
     if (!user) return
@@ -33,6 +37,23 @@ export default function HomePage() {
   const dateStr = `${today.getFullYear()}년 ${today.getMonth() + 1}월 ${today.getDate()}일`
   const dayNames = ['일', '월', '화', '수', '목', '금', '토']
   const dayStr = dayNames[today.getDay()]
+
+  // 실제 삭제 실행
+  const handleConfirmDelete = async () => {
+    if (!diaryToDelete) return
+    setIsDeleting(true)
+    try {
+      await deleteDiary(diaryToDelete.id)
+      // 화면에서 즉시 제거 (DB 재조회 없이)
+      setDiaries((prev) => prev.filter((d) => d.id !== diaryToDelete.id))
+      setDiaryToDelete(null)
+    } catch (err) {
+      console.error('일기 삭제 실패:', err)
+      alert('삭제에 실패했어요. 다시 시도해주세요.')
+    } finally {
+      setIsDeleting(false)
+    }
+  }
 
   return (
     <div className="min-h-screen">
@@ -80,6 +101,12 @@ export default function HomePage() {
                 key={diary.id}
                 diary={diary}
                 onClick={() => router.push(`/editor/${diary.id}`)}
+                // 본인이 만든 일기일 때만 삭제 콜백 전달
+                onDelete={
+                  user && diary.createdBy === user.id
+                    ? () => setDiaryToDelete(diary)
+                    : undefined
+                }
               />
             ))}
           </div>
@@ -105,6 +132,42 @@ export default function HomePage() {
           새 일기 쓰기
         </button>
       </div>
+
+      {/* 삭제 확인 모달 */}
+      {diaryToDelete && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center px-6">
+          <div className="bg-paper-50 rounded-2xl shadow-2xl w-full max-w-xs overflow-hidden">
+            <div className="px-5 pt-5 pb-3">
+              <p className="font-handwriting text-lg text-ink-800 font-bold text-center mb-2">
+                일기를 삭제할까요?
+              </p>
+              <p className="text-xs text-ink-700/50 text-center leading-relaxed">
+                <span className="font-bold text-ink-800/80">"{diaryToDelete.title}"</span>
+                <br />
+                일기와 모든 덧붙임이 사라져요.
+                <br />
+                되돌릴 수 없어요.
+              </p>
+            </div>
+            <div className="flex border-t border-paper-200">
+              <button
+                onClick={() => setDiaryToDelete(null)}
+                disabled={isDeleting}
+                className="flex-1 py-3.5 text-sm text-ink-700/60 hover:bg-paper-100 transition disabled:opacity-40"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleConfirmDelete}
+                disabled={isDeleting}
+                className="flex-1 py-3.5 text-sm font-bold text-red-500 hover:bg-red-50 transition border-l border-paper-200 disabled:opacity-40"
+              >
+                {isDeleting ? '삭제 중...' : '삭제'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -1,16 +1,34 @@
 'use client'
 
+import { useEffect, useRef, useState } from 'react'
 import { Diary } from '@/features/diary/types'
 import { getUserById, getInitial, getAvatarStyle } from '@/features/diary/mockData'
 
 type DiaryCardProps = {
   diary: Diary
   onClick?: () => void
+  onDelete?: () => void  // 삭제 가능한 경우에만 전달 (본인이 만든 일기일 때)
 }
 
-export default function DiaryCard({ diary, onClick }: DiaryCardProps) {
+export default function DiaryCard({ diary, onClick, onDelete }: DiaryCardProps) {
   const hasUnread = diary.unreadEdits > 0
   const lastEditorAvatar = getAvatarStyle(diary.lastEditedBy)
+
+  // 메뉴 열림 상태
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  // 메뉴 바깥 클릭 시 닫기
+  useEffect(() => {
+    if (!menuOpen) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [menuOpen])
 
   // 알림 뱃지 텍스트: 1~10은 숫자, 그 이상은 +10
   const badgeText = diary.unreadEdits > 10 ? '+10' : String(diary.unreadEdits)
@@ -37,6 +55,39 @@ export default function DiaryCard({ diary, onClick }: DiaryCardProps) {
           style={lastEditorAvatar.style}
         >
           {badgeText}
+        </div>
+      )}
+
+      {/* ⋯ 메뉴 버튼 — onDelete가 있을 때만 표시 (본인이 만든 일기) */}
+      {onDelete && (
+        <div ref={menuRef} className="absolute top-2 right-2 z-10">
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              setMenuOpen((v) => !v)
+            }}
+            className="w-8 h-8 rounded-full bg-white/80 backdrop-blur-sm hover:bg-white text-ink-800/70 hover:text-ink-800 flex items-center justify-center text-lg shadow-sm transition"
+            aria-label="메뉴 열기"
+          >
+            ⋯
+          </button>
+
+          {/* 드롭다운 메뉴 */}
+          {menuOpen && (
+            <div className="absolute top-10 right-0 bg-white rounded-xl shadow-lg border border-paper-200 overflow-hidden min-w-[120px]">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setMenuOpen(false)
+                  onDelete()
+                }}
+                className="w-full px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition text-left flex items-center gap-2"
+              >
+                <span>🗑️</span>
+                <span>삭제하기</span>
+              </button>
+            </div>
+          )}
         </div>
       )}
 
