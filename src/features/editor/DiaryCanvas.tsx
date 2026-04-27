@@ -271,6 +271,13 @@ const DiaryCanvas = forwardRef<CanvasHandle, DiaryCanvasProps>(
 
         canvas.isDrawingMode = false
 
+        // 폰트 로드 보장 — Fabric은 시스템에 폰트가 없으면 fallback으로 그림
+        // 첫 폰트명만 추출해서 document.fonts.load로 실제 다운로드 완료까지 대기
+        const firstFont = options.fontFamily.split(',')[0].trim().replace(/['"]/g, '')
+        if (firstFont && typeof document !== 'undefined' && document.fonts?.load) {
+          try { await document.fonts.load(`24px "${firstFont}"`) } catch { /* ignore */ }
+        }
+
         const maxWidth = canvas.width * 0.9
 
         const textObj = new fabric.Textbox(options.text, {

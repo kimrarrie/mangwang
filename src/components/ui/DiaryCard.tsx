@@ -96,6 +96,7 @@ export default function DiaryCard({ diary, onClick, onDelete }: DiaryCardProps) 
         className={`relative paper-card overflow-hidden text-left w-full ${
           hasUnread ? `ring-2 ${lastEditorAvatar.ringClass}` : ''
         }`}
+        style={hasUnread ? lastEditorAvatar.ringStyle : undefined}
       >
         {/* 일기 미리보기 이미지 — 가운데 부분을 잘라서 보여줌 */}
         {lastLayerImage ? (
@@ -141,7 +142,7 @@ export default function DiaryCard({ diary, onClick, onDelete }: DiaryCardProps) 
                     className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border-2 border-white shadow-sm ${avatar.className} ${
                       isLastEditor ? `ring-2 ${avatar.ringClass}` : ''
                     }`}
-                    style={avatar.style}
+                    style={{ ...avatar.style, ...(isLastEditor ? avatar.ringStyle : {}) }}
                     title={editor.displayName}
                   >
                     {getInitial(editorId)}

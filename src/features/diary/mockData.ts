@@ -49,15 +49,19 @@ export function getAvatarStyle(userId: string): {
   className: string
   style?: CSSProperties
   ringClass: string
+  ringStyle?: CSSProperties // customColor 사용 시 ring-color를 인라인으로 적용
 } {
   const user = getUserById(userId)
   const defaultColor = WRITER_COLORS[userId]
 
   if (user?.customColor) {
+    // Tailwind v4의 ring-color는 --tw-ring-color CSS 변수로 제어됨
+    // ringClass는 비워두고, ring 색상만 인라인 변수로 덮어씀
     return {
       className: '',
       style: { backgroundColor: user.customColor.bg, color: user.customColor.text },
-      ringClass: 'ring-gray-400',
+      ringClass: '',
+      ringStyle: { ['--tw-ring-color' as string]: user.customColor.bg } as CSSProperties,
     }
   }
 

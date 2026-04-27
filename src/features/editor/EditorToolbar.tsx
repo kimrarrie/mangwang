@@ -28,7 +28,7 @@ const BRUSH_WIDTHS = [2, 5, 10]
 // 폰트 스타일 옵션
 const FONT_STYLES = [
   { id: 'handwriting', label: '손글씨', fontFamily: 'Gaegu, cursive' },
-  { id: 'serif', label: '명조', fontFamily: 'Georgia, serif' },
+  { id: 'serif', label: '명조', fontFamily: '"Nanum Myeongjo", Georgia, serif' },
   { id: 'sans', label: '고딕', fontFamily: 'Arial, Helvetica, sans-serif' },
 ]
 
