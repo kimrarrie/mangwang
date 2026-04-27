@@ -6,11 +6,12 @@ import type { TextOptions } from './EditorToolbar'
 // ===== 타입 정의 =====
 
 export type CanvasHandle = {
-  setDrawingMode: (enabled: boolean) => void
+  setDrawingMode: (enabled: boolean) => Promise<void>
   setBrushColor: (color: string) => void
   setBrushWidth: (width: number) => void
   addText: (options: TextOptions) => void
   addImage: (dataUrl: string) => Promise<void>     // 이미지를 스티커로 캔버스에 추가
+  deleteActive: () => void                         // 현재 선택된 오브젝트 삭제 (휴지통 드래그용)
   undo: () => void
   setBackgroundColor: (color: string) => void
   toJSON: () => string
@@ -28,16 +29,29 @@ type DiaryCanvasProps = {
   onCanvasReady?: () => void
   onSelectionChange?: (hasSelection: boolean) => void
   onContentChange?: (hasContent: boolean) => void  // 캔버스 내용 유무 변경 시 호출
+  // 드래그 시 화면(클라이언트) 좌표 알림 — 부모가 휴지통 hit-test 처리
+  onObjectMove?: (clientX: number, clientY: number) => void
+  // 드래그 종료 — 부모가 휴지통에 떨어졌는지 보고 deleteActive() 호출
+  onObjectMoveEnd?: () => void
 }
 
 const DiaryCanvas = forwardRef<CanvasHandle, DiaryCanvasProps>(
-  function DiaryCanvas({ initialData, backgroundColor = '#fefcf8', backgroundLayers, hiddenLayerIndices, onCanvasReady, onSelectionChange, onContentChange }, ref) {
+  function DiaryCanvas({ initialData, backgroundColor = '#fefcf8', backgroundLayers, hiddenLayerIndices, onCanvasReady, onSelectionChange, onContentChange, onObjectMove, onObjectMoveEnd }, ref) {
     const canvasRef = useRef<HTMLCanvasElement>(null)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const fabricRef = useRef<any>(null)
     const containerRef = useRef<HTMLDivElement>(null)
     const historyRef = useRef<string[]>([])
     const isUndoing = useRef(false)
+    // ===== 그리기 세션 — 끝날 때 누적된 path들을 하나의 그룹으로 묶음 =====
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const drawingPathsRef = useRef<any[]>([])
+    const isDrawingSessionRef = useRef(false)
+    // 콜백을 ref에 담아서 useEffect 의존성 배열에 안 넣어도 항상 최신 함수 참조
+    const onObjectMoveRef = useRef(onObjectMove)
+    const onObjectMoveEndRef = useRef(onObjectMoveEnd)
+    onObjectMoveRef.current = onObjectMove
+    onObjectMoveEndRef.current = onObjectMoveEnd
 
     // 배경 레이어 존재 여부
     const hasBgLayers = backgroundLayers && backgroundLayers.length > 0
@@ -113,13 +127,61 @@ const DiaryCanvas = forwardRef<CanvasHandle, DiaryCanvasProps>(
           onContentChange?.(canvas.getObjects().length > 0)
         }
 
+        // ===== 선택한 오브젝트를 항상 최상단으로 (현재 편집 중인 캔버스 안에서만) =====
+        // 이전 일기 레이어 이미지는 캔버스 외부 <img>라 영향 없음
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const bringSelectedToFront = (e: any) => {
+          const targets = e?.selected || (canvas.getActiveObject() ? [canvas.getActiveObject()] : [])
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          targets.forEach((obj: any) => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const c = canvas as any
+            if (typeof c.bringObjectToFront === 'function') {
+              c.bringObjectToFront(obj)
+            } else if (typeof c.bringToFront === 'function') {
+              c.bringToFront(obj)
+            }
+          })
+        }
+
         // 이벤트
         canvas.on('object:added', () => { saveHistory(); notifyContentChange() })
         canvas.on('object:modified', () => saveHistory())
         canvas.on('object:removed', () => { saveHistory(); notifyContentChange() })
-        canvas.on('selection:created', () => onSelectionChange?.(true))
-        canvas.on('selection:updated', () => onSelectionChange?.(true))
+        canvas.on('selection:created', (e: unknown) => { bringSelectedToFront(e); onSelectionChange?.(true) })
+        canvas.on('selection:updated', (e: unknown) => { bringSelectedToFront(e); onSelectionChange?.(true) })
         canvas.on('selection:cleared', () => onSelectionChange?.(false))
+
+        // ===== 그리기 세션 — path:created 이벤트로 새 stroke 누적 =====
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        canvas.on('path:created', (e: any) => {
+          if (isDrawingSessionRef.current && e?.path) {
+            drawingPathsRef.current.push(e.path)
+          }
+        })
+
+        // ===== 드래그 → 휴지통 삭제용 좌표 콜백 =====
+        // object:moving 이벤트는 native event(e.e)를 포함 (mouse/touch)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        canvas.on('object:moving', (opt: any) => {
+          const ev = opt?.e
+          if (!ev) return
+          let clientX: number | undefined
+          let clientY: number | undefined
+          if (typeof ev.clientX === 'number') {
+            clientX = ev.clientX
+            clientY = ev.clientY
+          } else if (ev.touches && ev.touches[0]) {
+            clientX = ev.touches[0].clientX
+            clientY = ev.touches[0].clientY
+          }
+          if (clientX !== undefined && clientY !== undefined) {
+            onObjectMoveRef.current?.(clientX, clientY)
+          }
+        })
+        canvas.on('mouse:up', () => {
+          onObjectMoveEndRef.current?.()
+        })
 
         saveHistory()
         onCanvasReady?.()
@@ -146,14 +208,43 @@ const DiaryCanvas = forwardRef<CanvasHandle, DiaryCanvasProps>(
       setDrawingMode: async (enabled: boolean) => {
         const canvas = fabricRef.current
         if (!canvas) return
+        const fabric = await import('fabric')
 
         if (enabled) {
           canvas.discardActiveObject()
           if (!canvas.freeDrawingBrush) {
-            const fabric = await import('fabric')
             canvas.freeDrawingBrush = new fabric.PencilBrush(canvas)
             canvas.freeDrawingBrush.color = '#3d3529'
             canvas.freeDrawingBrush.width = 3
+          }
+          // 새 그리기 세션 시작
+          drawingPathsRef.current = []
+          isDrawingSessionRef.current = true
+        } else {
+          // 그리기 세션 종료 — 누적된 path들을 하나의 그룹으로 묶음
+          isDrawingSessionRef.current = false
+          const paths = drawingPathsRef.current
+          drawingPathsRef.current = []
+
+          if (paths.length > 0) {
+            // 그룹화는 단일 history step으로 처리하기 위해 중간 이벤트의 history 저장 차단
+            isUndoing.current = true
+            try {
+              paths.forEach((p) => canvas.remove(p))
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const group = new (fabric as any).Group(paths, {
+                cornerColor: '#ffffff',
+                cornerStrokeColor: '#aaaaaa',
+                cornerSize: 12,
+                transparentCorners: false,
+                borderColor: '#aaaaaa',
+                borderDashArray: [4, 4],
+              })
+              canvas.add(group)
+            } finally {
+              isUndoing.current = false
+            }
+            saveHistory() // 그룹화 결과를 한 step으로 저장
           }
         }
 
@@ -247,6 +338,24 @@ const DiaryCanvas = forwardRef<CanvasHandle, DiaryCanvasProps>(
 
         canvas.add(img)
         canvas.setActiveObject(img)
+        canvas.renderAll()
+      },
+
+      deleteActive: () => {
+        const canvas = fabricRef.current
+        if (!canvas) return
+        const active = canvas.getActiveObject()
+        if (!active) return
+        // ActiveSelection (다중 선택)인 경우 내부 오브젝트들을 모두 제거
+        if (active.type === 'activeselection' || active.type === 'activeSelection') {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const objs = active.getObjects ? active.getObjects() : [active]
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          objs.forEach((o: any) => canvas.remove(o))
+        } else {
+          canvas.remove(active)
+        }
+        canvas.discardActiveObject()
         canvas.renderAll()
       },
 

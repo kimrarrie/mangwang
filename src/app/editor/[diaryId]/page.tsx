@@ -66,6 +66,35 @@ export default function EditorPage() {
   // 캔버스 콘텐츠 유무 추적
   const [hasCanvasContent, setHasCanvasContent] = useState(false)
 
+  // ===== 휴지통 드래그 삭제 =====
+  // isDragging: 드래그 중일 때 휴지통 UI 표시
+  // isOverTrash: 휴지통 영역에 있을 때 강조 + 드롭 시 삭제
+  const [isDragging, setIsDragging] = useState(false)
+  const [isOverTrash, setIsOverTrash] = useState(false)
+  const trashRef = useRef<HTMLDivElement>(null)
+  // setState는 비동기라 mouse:up 시점에 stale일 수 있음 → ref로 보강
+  const isOverTrashRef = useRef(false)
+
+  const handleObjectMove = useCallback((clientX: number, clientY: number) => {
+    setIsDragging(true)
+    if (!trashRef.current) return
+    const rect = trashRef.current.getBoundingClientRect()
+    const over =
+      clientX >= rect.left && clientX <= rect.right &&
+      clientY >= rect.top && clientY <= rect.bottom
+    isOverTrashRef.current = over
+    setIsOverTrash(over)
+  }, [])
+
+  const handleObjectMoveEnd = useCallback(() => {
+    if (isOverTrashRef.current) {
+      canvasRef.current?.deleteActive()
+    }
+    isOverTrashRef.current = false
+    setIsDragging(false)
+    setIsOverTrash(false)
+  }, [])
+
   // 제목 추천 팝업
   const [showTitlePopup, setShowTitlePopup] = useState(false)
   const [suggestedTitle, setSuggestedTitle] = useState('')
@@ -297,7 +326,26 @@ export default function EditorPage() {
             backgroundLayers={backgroundLayers}
             hiddenLayerIndices={hiddenLayers}
             onContentChange={setHasCanvasContent}
+            onObjectMove={handleObjectMove}
+            onObjectMoveEnd={handleObjectMoveEnd}
           />
+
+          {/* ===== 휴지통 — 드래그 중일 때만 표시. 영역 안에 들어오면 강조 ===== */}
+          <div
+            ref={trashRef}
+            className={`pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-20 z-30 flex flex-col items-center justify-center w-20 h-20 rounded-full transition-all duration-150 ${
+              isDragging ? 'opacity-100 scale-100' : 'opacity-0 scale-75'
+            } ${
+              isOverTrash
+                ? 'bg-red-500/85 ring-4 ring-white/40 scale-110'
+                : 'bg-black/55 backdrop-blur-sm'
+            }`}
+          >
+            <span className="text-3xl">🗑️</span>
+            <span className="text-[10px] text-white/80 mt-0.5">
+              {isOverTrash ? '놓으면 삭제' : '여기로 끌기'}
+            </span>
+          </div>
 
           {/* 레이어 히스토리 패널 — 우측 하단, 밝은 반투명 */}
           {showLayerPanel && existingDiary && (
