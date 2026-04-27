@@ -6,7 +6,7 @@ import dynamic from 'next/dynamic'
 import EditorToolbar from '@/features/editor/EditorToolbar'
 import type { CanvasHandle } from '@/features/editor/DiaryCanvas'
 import type { ToolMode, TextOptions } from '@/features/editor/EditorToolbar'
-import { isPattern, getPatternCSS } from '@/features/editor/EditorToolbar'
+import { getRandomBgColor } from '@/features/editor/EditorToolbar'
 import { getUserById, getInitial, getAvatarStyle } from '@/features/diary/mockData'
 import { useUser } from '@/features/auth/useUser'
 import { getDiaryById, markDiaryAsRead, createDiary, appendLayer } from '@/lib/supabase/diaryService'
@@ -55,8 +55,13 @@ export default function EditorPage() {
   const [title, setTitle] = useState('')
   const [isEditingTitle, setIsEditingTitle] = useState(isNew)
   const [toolMode, setToolMode] = useState<ToolMode>('none')
-  const [bgColor, setBgColor] = useState(isNew ? '#fefcf8' : 'transparent')
-  // 기존 일기에 덧붙일 때는 배경 투명 (이전 레이어가 보이도록)
+  // 새 일기는 팔레트에서 랜덤 배경, 덧붙임은 투명 (이전 레이어 보이도록)
+  const [bgColor] = useState(() => isNew ? getRandomBgColor() : 'transparent')
+
+  // 사진 업로드 제한
+  const MAX_IMAGE_SIZE = 5 * 1024 * 1024 // 5MB
+  const MAX_IMAGE_COUNT = 5
+  const photoInputRef = useRef<HTMLInputElement>(null)
 
   // 캔버스 콘텐츠 유무 추적
   const [hasCanvasContent, setHasCanvasContent] = useState(false)
@@ -91,16 +96,72 @@ export default function EditorPage() {
     canvasRef.current?.addText(options)
   }, [])
 
-  const handleBgChange = useCallback((color: string) => {
-    setBgColor(color)
-    // 패턴은 Fabric 캔버스에 직접 적용할 수 없으므로 CSS로 처리
-    // Fabric 캔버스 배경은 단색만 지원
-    if (isPattern(color)) {
-      canvasRef.current?.setBackgroundColor('')
-    } else {
-      canvasRef.current?.setBackgroundColor(color)
+  // ===== 사진 추가 핸들러 =====
+  // dataURL을 받아 캔버스에 스티커처럼 추가. 개수 제한 체크.
+  const addImageToCanvas = useCallback(async (dataUrl: string) => {
+    if (!canvasRef.current) return
+    const currentCount = canvasRef.current.getImageCount()
+    if (currentCount >= MAX_IMAGE_COUNT) {
+      alert(`사진은 한 일기에 최대 ${MAX_IMAGE_COUNT}장까지 추가할 수 있어요.`)
+      return
     }
+    await canvasRef.current.addImage(dataUrl)
+  }, [MAX_IMAGE_COUNT])
+
+  // 파일 → dataURL 변환 + 용량 체크
+  const handleFile = useCallback(async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      alert('이미지 파일만 추가할 수 있어요.')
+      return
+    }
+    if (file.size > MAX_IMAGE_SIZE) {
+      const sizeMB = (file.size / 1024 / 1024).toFixed(1)
+      alert(`사진 용량이 너무 커요 (${sizeMB}MB).\n5MB 이하 사진만 올릴 수 있어요.`)
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = async (e) => {
+      const dataUrl = e.target?.result as string
+      if (dataUrl) await addImageToCanvas(dataUrl)
+    }
+    reader.readAsDataURL(file)
+  }, [addImageToCanvas, MAX_IMAGE_SIZE])
+
+  // 사진 버튼 클릭 → 파일 선택 다이얼로그 열기
+  const handlePhotoClick = useCallback(() => {
+    photoInputRef.current?.click()
   }, [])
+
+  const handlePhotoInputChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) await handleFile(file)
+    // 같은 파일을 다시 선택할 수 있도록 input 초기화
+    e.target.value = ''
+  }, [handleFile])
+
+  // ===== 클립보드 이미지 붙여넣기 =====
+  // 텍스트 입력 중(textarea 포커스)에는 텍스트 붙여넣기로 동작하도록 무시
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      const target = e.target as HTMLElement | null
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return
+
+      const items = e.clipboardData?.items
+      if (!items) return
+      for (const item of items) {
+        if (item.type.startsWith('image/')) {
+          const file = item.getAsFile()
+          if (file) {
+            e.preventDefault()
+            handleFile(file)
+            break
+          }
+        }
+      }
+    }
+    window.addEventListener('paste', handlePaste)
+    return () => window.removeEventListener('paste', handlePaste)
+  }, [handleFile])
 
   // 제목 추천 생성
   const generateTitleSuggestion = useCallback(() => {
@@ -219,11 +280,17 @@ export default function EditorPage() {
           </button>
         </div>
 
-        {/* 캔버스 — 패턴 배경은 CSS로 적용 */}
-        <div
-          className="flex-1 relative"
-          style={isPattern(bgColor) ? getPatternCSS(bgColor) : undefined}
-        >
+        {/* 숨겨진 파일 input — 사진 버튼 클릭 시 트리거 */}
+        <input
+          ref={photoInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handlePhotoInputChange}
+        />
+
+        {/* 캔버스 */}
+        <div className="flex-1 relative">
           <DiaryCanvas
             ref={canvasRef}
             backgroundColor={bgColor}
@@ -288,9 +355,8 @@ export default function EditorPage() {
             onColorChange={(color) => canvasRef.current?.setBrushColor(color)}
             onWidthChange={(width) => canvasRef.current?.setBrushWidth(width)}
             onTextSubmit={handleTextSubmit}
-            onBackgroundChange={handleBgChange}
+            onPhotoClick={handlePhotoClick}
             onUndo={() => canvasRef.current?.undo()}
-            currentBgColor={bgColor}
             showHistory={!!existingDiary && existingDiary.layers.length > 0}
             isHistoryOpen={showLayerPanel}
             onHistoryToggle={() => setShowLayerPanel(!showLayerPanel)}

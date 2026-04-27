@@ -10,12 +10,14 @@ export type CanvasHandle = {
   setBrushColor: (color: string) => void
   setBrushWidth: (width: number) => void
   addText: (options: TextOptions) => void
+  addImage: (dataUrl: string) => Promise<void>     // 이미지를 스티커로 캔버스에 추가
   undo: () => void
   setBackgroundColor: (color: string) => void
   toJSON: () => string
   toDataURL: () => Promise<string | null>
   hasContent: () => boolean              // 캔버스에 오브젝트가 있는지 확인
   getTextContent: () => string           // 캔버스 내 텍스트 내용 추출
+  getImageCount: () => number            // 캔버스에 추가된 이미지 개수
 }
 
 type DiaryCanvasProps = {
@@ -211,6 +213,43 @@ const DiaryCanvas = forwardRef<CanvasHandle, DiaryCanvasProps>(
         canvas.renderAll()
       },
 
+      addImage: async (dataUrl: string) => {
+        const canvas = fabricRef.current
+        if (!canvas) return
+        const fabric = await import('fabric')
+
+        canvas.isDrawingMode = false
+
+        // Fabric v7: FabricImage.fromURL은 Promise 반환
+        // crossOrigin은 data URL엔 무의미하지만 외부 URL 호환 위해 명시
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const img: any = await (fabric as any).FabricImage.fromURL(dataUrl, { crossOrigin: 'anonymous' })
+
+        // 캔버스 너비/높이의 50%를 넘지 않도록 자동 스케일
+        const maxW = canvas.width * 0.5
+        const maxH = canvas.height * 0.5
+        const scale = Math.min(maxW / img.width, maxH / img.height, 1)
+
+        img.set({
+          left: canvas.width / 2,
+          top: canvas.height / 2,
+          originX: 'center',
+          originY: 'center',
+          scaleX: scale,
+          scaleY: scale,
+          cornerColor: '#ffffff',
+          cornerStrokeColor: '#aaaaaa',
+          cornerSize: 12,
+          transparentCorners: false,
+          borderColor: '#aaaaaa',
+          borderDashArray: [4, 4],
+        })
+
+        canvas.add(img)
+        canvas.setActiveObject(img)
+        canvas.renderAll()
+      },
+
       undo: () => {
         const canvas = fabricRef.current
         if (!canvas || historyRef.current.length <= 1) return
@@ -253,6 +292,13 @@ const DiaryCanvas = forwardRef<CanvasHandle, DiaryCanvasProps>(
 
       hasContent: () => {
         return fabricRef.current ? fabricRef.current.getObjects().length > 0 : false
+      },
+
+      getImageCount: () => {
+        if (!fabricRef.current) return 0
+        return fabricRef.current.getObjects()
+          .filter((obj: { type: string }) => obj.type === 'image' || obj.type === 'FabricImage')
+          .length
       },
 
       getTextContent: () => {

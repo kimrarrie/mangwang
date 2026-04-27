@@ -1,107 +1,39 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
-// ===== 색상 팔레트 =====
+// ===== 색상 팔레트 (펜/텍스트 공용, 가로 스크롤 가능) =====
 const COLORS = [
-  '#3d3529', '#ffffff', '#c0392b', '#e67e22',
-  '#f1c40f', '#27ae60', '#2980b9', '#8e44ad',
-  '#e84393', '#1abc9c',
+  '#3d3529', '#000000', '#ffffff', '#7f8c8d',
+  '#c0392b', '#e74c3c', '#e67e22', '#f39c12',
+  '#f1c40f', '#27ae60', '#16a085', '#1abc9c',
+  '#3498db', '#2980b9', '#8e44ad', '#e84393',
 ]
 
-// 배경색 옵션 (단색 + 패턴)
-// 패턴은 'pattern:' 접두사로 구분
-const BG_COLORS = [
-  '#fefcf8', '#1a1610', '#2a2d3d', '#f8e8d4', '#e8f4f8',
-  'pattern:grid',       // 그리드 패턴 (연한 초록)
-  'pattern:dots',       // 점 패턴 (연한 핑크)
-  'pattern:lines',      // 가로줄 노트 패턴
+// ===== 배경 팔레트 (새 일기 생성 시 랜덤으로 하나 선택) =====
+const BG_PALETTE = [
+  '#fefcf8', '#f8efd8', '#fde2d4', '#fce4ec',
+  '#ece4f5', '#e3edf7', '#dff1ec', '#e6efd9',
+  '#ecebe7', '#eef0f2', '#1a1610', '#222837',
+  '#3a1f24', '#1f2e26', '#2a1f3d', '#2e2018',
 ]
 
-// 패턴을 CSS background-image로 변환하는 헬퍼 (캔버스 배경용)
-function getPatternCSS(patternId: string): { backgroundColor: string; backgroundImage: string; backgroundSize: string } {
-  switch (patternId) {
-    case 'pattern:grid':
-      return {
-        backgroundColor: '#f4f9f4',
-        backgroundImage: `
-          linear-gradient(#c8e0c8 1px, transparent 1px),
-          linear-gradient(90deg, #c8e0c8 1px, transparent 1px)
-        `,
-        backgroundSize: '24px 24px',
-      }
-    case 'pattern:dots':
-      return {
-        backgroundColor: '#fdf2f4',
-        backgroundImage: `radial-gradient(circle, #e8b4bd 1.2px, transparent 1.2px)`,
-        backgroundSize: '18px 18px',
-      }
-    case 'pattern:lines':
-      return {
-        backgroundColor: '#fefcf8',
-        backgroundImage: `linear-gradient(transparent 27px, #c8dbe8 27px, #c8dbe8 28px)`,
-        backgroundSize: '100% 28px',
-      }
-    default:
-      return { backgroundColor: patternId, backgroundImage: 'none', backgroundSize: 'auto' }
-  }
+export function getRandomBgColor(): string {
+  return BG_PALETTE[Math.floor(Math.random() * BG_PALETTE.length)]
 }
-
-// 썸네일용 패턴 CSS — 작은 원 안에서 패턴이 잘 보이도록 과장된 크기
-function getPatternThumbnailCSS(patternId: string): React.CSSProperties {
-  switch (patternId) {
-    case 'pattern:grid':
-      return {
-        backgroundColor: '#f4f9f4',
-        backgroundImage: `
-          linear-gradient(#c8e0c8 1px, transparent 1px),
-          linear-gradient(90deg, #c8e0c8 1px, transparent 1px)
-        `,
-        backgroundSize: '8px 8px',
-        backgroundPosition: 'center center',
-      }
-    case 'pattern:dots':
-      return {
-        backgroundColor: '#fdf2f4',
-        backgroundImage: `radial-gradient(circle, #e8b4bd 2px, transparent 2px)`,
-        backgroundSize: '8px 8px',
-        backgroundPosition: '4px 4px',
-      }
-    case 'pattern:lines':
-      return {
-        backgroundColor: '#fefcf8',
-        backgroundImage: `linear-gradient(transparent 6px, #c8dbe8 6px, #c8dbe8 7px)`,
-        backgroundSize: '100% 7px',
-        backgroundPosition: 'center center',
-      }
-    default:
-      return { backgroundColor: patternId }
-  }
-}
-
-// 패턴인지 확인
-export function isPattern(color: string): boolean {
-  return color.startsWith('pattern:')
-}
-
-export { getPatternCSS }
 
 // 펜 굵기
 const BRUSH_WIDTHS = [2, 5, 10]
 
 // 폰트 스타일 옵션
-// Fabric.js는 CSS 변수(var(--font-gaegu))를 인식 못함 → 실제 폰트명 사용
 const FONT_STYLES = [
   { id: 'handwriting', label: '손글씨', fontFamily: 'Gaegu, cursive' },
   { id: 'serif', label: '명조', fontFamily: 'Georgia, serif' },
   { id: 'sans', label: '고딕', fontFamily: 'Arial, Helvetica, sans-serif' },
 ]
 
-// 정렬 옵션
-const ALIGN_OPTIONS = ['left', 'center', 'right'] as const
-
-// ===== 도구 모드 =====
-export type ToolMode = 'none' | 'text' | 'draw' | 'background'
+// ===== 도구 모드 (배경 모드 제거) =====
+export type ToolMode = 'none' | 'text' | 'draw'
 
 // 텍스트 옵션
 export type TextOptions = {
@@ -117,12 +49,11 @@ type EditorToolbarProps = {
   onColorChange: (color: string) => void
   onWidthChange: (width: number) => void
   onTextSubmit: (options: TextOptions) => void
-  onBackgroundChange: (color: string) => void
+  onPhotoClick: () => void           // 사진 버튼 클릭 → page에서 file input 열기
   onUndo: () => void
-  currentBgColor: string
-  showHistory?: boolean               // 히스토리 버튼 표시 여부
-  isHistoryOpen?: boolean             // 히스토리 패널 열림 상태
-  onHistoryToggle?: () => void        // 히스토리 패널 토글
+  showHistory?: boolean
+  isHistoryOpen?: boolean
+  onHistoryToggle?: () => void
 }
 
 export default function EditorToolbar({
@@ -131,9 +62,8 @@ export default function EditorToolbar({
   onColorChange,
   onWidthChange,
   onTextSubmit,
-  onBackgroundChange,
+  onPhotoClick,
   onUndo,
-  currentBgColor,
   showHistory,
   isHistoryOpen,
   onHistoryToggle,
@@ -142,7 +72,29 @@ export default function EditorToolbar({
   const [selectedWidth, setSelectedWidth] = useState(5)
   const [textInput, setTextInput] = useState('')
   const [textFont, setTextFont] = useState(FONT_STYLES[0])
-  const [textAlign, setTextAlign] = useState('center')
+
+  // ===== 모바일 키보드 높이 추적 (visualViewport API) =====
+  // 키보드가 올라오면 텍스트 컨트롤이 가려지지 않도록 하단 패딩으로 보정
+  const [keyboardOffset, setKeyboardOffset] = useState(0)
+  useEffect(() => {
+    if (mode !== 'text') {
+      setKeyboardOffset(0)
+      return
+    }
+    const vv = typeof window !== 'undefined' ? window.visualViewport : null
+    if (!vv) return
+    const handler = () => {
+      const offset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop)
+      setKeyboardOffset(offset)
+    }
+    vv.addEventListener('resize', handler)
+    vv.addEventListener('scroll', handler)
+    handler()
+    return () => {
+      vv.removeEventListener('resize', handler)
+      vv.removeEventListener('scroll', handler)
+    }
+  }, [mode])
 
   const handleModeToggle = (newMode: ToolMode) => {
     onModeChange(mode === newMode ? 'none' : newMode)
@@ -159,7 +111,7 @@ export default function EditorToolbar({
         text: textInput.trim(),
         color: selectedColor,
         fontFamily: textFont.fontFamily,
-        textAlign,
+        textAlign: 'center', // 항상 가운데 정렬 (정렬 옵션 제거)
       })
       setTextInput('')
       onModeChange('none')
@@ -168,10 +120,12 @@ export default function EditorToolbar({
 
   return (
     <>
-      {/* ===== 텍스트 입력 오버레이 ===== */}
+      {/* ===== 텍스트 입력 오버레이 — 위쪽 정렬 + 키보드만큼 아래 패딩 ===== */}
       {mode === 'text' && (
-        <div className="absolute inset-0 z-20 bg-black/60 flex flex-col items-center justify-center px-6">
-
+        <div
+          className="absolute inset-0 z-20 bg-black/60 flex flex-col items-center px-6 overflow-y-auto"
+          style={{ paddingTop: 32, paddingBottom: keyboardOffset + 16 }}
+        >
           {/* 텍스트 입력 */}
           <textarea
             autoFocus
@@ -183,9 +137,9 @@ export default function EditorToolbar({
               fontSize: 24,
               color: selectedColor === '#3d3529' ? '#ffffff' : selectedColor,
               fontFamily: textFont.fontFamily,
-              textAlign: textAlign as 'left' | 'center' | 'right',
+              textAlign: 'center',
             }}
-            rows={4}
+            rows={3}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault()
@@ -212,41 +166,20 @@ export default function EditorToolbar({
             ))}
           </div>
 
-          {/* 정렬 선택 */}
-          <div className="flex items-center gap-1 mt-3">
-            {ALIGN_OPTIONS.map((align) => (
-              <button
-                key={align}
-                onClick={() => setTextAlign(align)}
-                className={`w-10 h-10 rounded-lg flex items-center justify-center transition ${
-                  textAlign === align ? 'bg-white/25' : 'bg-white/10'
-                }`}
-              >
-                {/* 정렬을 나타내는 막대 아이콘 — 긴 줄과 짧은 줄의 정렬 방향으로 구분 */}
-                <div className={`flex flex-col gap-[3px] ${
-                  align === 'left' ? 'items-start' : align === 'right' ? 'items-end' : 'items-center'
-                }`}>
-                  <div className="h-[2px] w-[16px] bg-white/80 rounded" />
-                  <div className="h-[2px] w-[10px] bg-white/80 rounded" />
-                  <div className="h-[2px] w-[14px] bg-white/80 rounded" />
-                  <div className="h-[2px] w-[8px] bg-white/80 rounded" />
-                </div>
-              </button>
-            ))}
-          </div>
-
-          {/* 색상 선택 */}
-          <div className="flex items-center gap-2 mt-4">
-            {COLORS.map((color) => (
-              <button
-                key={color}
-                onClick={() => handleColorSelect(color)}
-                className={`w-7 h-7 rounded-full border-2 transition-transform ${
-                  selectedColor === color ? 'border-white scale-125' : 'border-white/30'
-                }`}
-                style={{ backgroundColor: color }}
-              />
-            ))}
+          {/* 색상 선택 — 가로 스크롤 가능 */}
+          <div className="w-full max-w-xs mt-4 overflow-x-auto no-scrollbar">
+            <div className="flex items-center gap-2 px-1 py-1 w-max">
+              {COLORS.map((color) => (
+                <button
+                  key={color}
+                  onClick={() => handleColorSelect(color)}
+                  className={`shrink-0 w-7 h-7 rounded-full border-2 transition-transform ${
+                    selectedColor === color ? 'border-white scale-125' : 'border-white/30'
+                  }`}
+                  style={{ backgroundColor: color }}
+                />
+              ))}
+            </div>
           </div>
 
           {/* 확인/취소 */}
@@ -267,56 +200,39 @@ export default function EditorToolbar({
         </div>
       )}
 
-      {/* ===== 그리기 모드 — 색상 + 굵기 패널 ===== */}
+      {/* ===== 그리기 모드 — 색상 + 굵기 한 줄에 배치 (공간 절약) ===== */}
       {mode === 'draw' && (
-        <div className="absolute bottom-16 left-0 right-0 z-10 flex flex-col items-center gap-3 px-4 py-3">
-          <div className="flex items-center gap-2 bg-black/50 backdrop-blur-sm rounded-full px-4 py-2">
-            {COLORS.map((color) => (
-              <button
-                key={color}
-                onClick={() => handleColorSelect(color)}
-                className={`w-6 h-6 rounded-full border-2 transition-transform ${
-                  selectedColor === color ? 'border-white scale-125' : 'border-transparent'
-                }`}
-                style={{ backgroundColor: color }}
-              />
-            ))}
-          </div>
-          <div className="flex items-center gap-3 bg-black/50 backdrop-blur-sm rounded-full px-4 py-2">
-            {BRUSH_WIDTHS.map((w) => (
-              <button
-                key={w}
-                onClick={() => { setSelectedWidth(w); onWidthChange(w) }}
-                className={`flex items-center justify-center w-9 h-9 rounded-full transition ${
-                  selectedWidth === w ? 'bg-white/30' : ''
-                }`}
-              >
-                <div className="rounded-full bg-white" style={{ width: w + 4, height: w + 4 }} />
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ===== 배경색/패턴 선택 패널 ===== */}
-      {mode === 'background' && (
-        <div className="absolute bottom-16 left-0 right-0 z-10 flex justify-center px-4 py-3">
-          <div className="flex items-center gap-2 bg-black/50 backdrop-blur-sm rounded-full px-4 py-2.5">
-            {BG_COLORS.map((color) => {
-              const thumbStyle = isPattern(color)
-                ? getPatternThumbnailCSS(color)
-                : { backgroundColor: color }
-              return (
+        <div className="absolute bottom-16 left-0 right-0 z-10 px-3 py-2 flex justify-center">
+          <div className="flex items-center gap-2 bg-black/55 backdrop-blur-sm rounded-full pl-2 pr-3 py-1.5 max-w-full">
+            {/* 굵기 — 좌측 고정 */}
+            <div className="flex items-center gap-1 shrink-0 pr-1.5 border-r border-white/15">
+              {BRUSH_WIDTHS.map((w) => (
                 <button
-                  key={color}
-                  onClick={() => onBackgroundChange(color)}
-                  className={`w-8 h-8 rounded-full border-2 transition-transform overflow-hidden ${
-                    currentBgColor === color ? 'border-white scale-125' : 'border-white/20'
+                  key={w}
+                  onClick={() => { setSelectedWidth(w); onWidthChange(w) }}
+                  className={`flex items-center justify-center w-8 h-8 rounded-full transition ${
+                    selectedWidth === w ? 'bg-white/30' : ''
                   }`}
-                  style={thumbStyle}
-                />
-              )
-            })}
+                >
+                  <div className="rounded-full bg-white" style={{ width: w + 3, height: w + 3 }} />
+                </button>
+              ))}
+            </div>
+            {/* 색상 — 가로 스크롤 */}
+            <div className="overflow-x-auto no-scrollbar">
+              <div className="flex items-center gap-1.5 w-max">
+                {COLORS.map((color) => (
+                  <button
+                    key={color}
+                    onClick={() => handleColorSelect(color)}
+                    className={`shrink-0 w-6 h-6 rounded-full border-2 transition-transform ${
+                      selectedColor === color ? 'border-white scale-125' : 'border-transparent'
+                    }`}
+                    style={{ backgroundColor: color }}
+                  />
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -329,11 +245,11 @@ export default function EditorToolbar({
           <span className="text-[10px] text-white/50">되돌리기</span>
         </button>
 
-        {/* 메인 도구 */}
+        {/* 메인 도구 — 텍스트/그리기/사진 */}
         <div className="flex items-center gap-1">
           <ToolBtn icon="Aa" label="텍스트" active={mode === 'text'} onClick={() => handleModeToggle('text')} isText />
           <ToolBtn icon="✏️" label="그리기" active={mode === 'draw'} onClick={() => handleModeToggle('draw')} />
-          <ToolBtn icon="🎨" label="배경" active={mode === 'background'} onClick={() => handleModeToggle('background')} />
+          <ToolBtn icon="📷" label="사진" active={false} onClick={onPhotoClick} />
         </div>
 
         {/* 히스토리 버튼 (기존 일기에서만 표시) */}
