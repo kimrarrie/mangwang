@@ -124,7 +124,7 @@ export default function EditorToolbar({
       {mode === 'text' && (
         <div
           className="absolute inset-0 z-20 bg-black/60 flex flex-col items-center px-6 overflow-y-auto"
-          style={{ paddingTop: 32, paddingBottom: keyboardOffset + 16 }}
+          style={{ paddingTop: '18vh', paddingBottom: keyboardOffset + 16 }}
         >
           {/* 텍스트 입력 */}
           <textarea
@@ -166,15 +166,25 @@ export default function EditorToolbar({
             ))}
           </div>
 
-          {/* 색상 선택 — 가로 스크롤 가능 */}
-          <div className="w-full max-w-xs mt-4 overflow-x-auto no-scrollbar">
+          {/* 색상 선택 — 가로 스크롤만 + 우측 페이드 마스크로 더 있음을 힌트 */}
+          <div
+            className="w-[260px] mt-4 overflow-x-auto no-scrollbar"
+            style={{
+              touchAction: 'pan-x',
+              overscrollBehaviorX: 'contain',
+              WebkitMaskImage: 'linear-gradient(to right, black 88%, transparent)',
+              maskImage: 'linear-gradient(to right, black 88%, transparent)',
+            }}
+          >
             <div className="flex items-center gap-2 px-1 py-1 w-max">
               {COLORS.map((color) => (
                 <button
                   key={color}
                   onClick={() => handleColorSelect(color)}
-                  className={`shrink-0 w-7 h-7 rounded-full border-2 transition-transform ${
-                    selectedColor === color ? 'border-white scale-125' : 'border-white/30'
+                  className={`shrink-0 w-7 h-7 rounded-full transition ${
+                    selectedColor === color
+                      ? 'ring-2 ring-inset ring-white'
+                      : 'opacity-70'
                   }`}
                   style={{ backgroundColor: color }}
                 />
@@ -218,15 +228,25 @@ export default function EditorToolbar({
                 </button>
               ))}
             </div>
-            {/* 색상 — 가로 스크롤 */}
-            <div className="overflow-x-auto no-scrollbar">
-              <div className="flex items-center gap-1.5 w-max">
+            {/* 색상 — 가로 스크롤만 + 우측 페이드 + 안쪽 링 강조 */}
+            <div
+              className="overflow-x-auto no-scrollbar max-w-[180px]"
+              style={{
+                touchAction: 'pan-x',
+                overscrollBehaviorX: 'contain',
+                WebkitMaskImage: 'linear-gradient(to right, black 85%, transparent)',
+                maskImage: 'linear-gradient(to right, black 85%, transparent)',
+              }}
+            >
+              <div className="flex items-center gap-1.5 py-0.5 w-max">
                 {COLORS.map((color) => (
                   <button
                     key={color}
                     onClick={() => handleColorSelect(color)}
-                    className={`shrink-0 w-6 h-6 rounded-full border-2 transition-transform ${
-                      selectedColor === color ? 'border-white scale-125' : 'border-transparent'
+                    className={`shrink-0 w-6 h-6 rounded-full transition ${
+                      selectedColor === color
+                        ? 'ring-2 ring-inset ring-white'
+                        : 'opacity-70'
                     }`}
                     style={{ backgroundColor: color }}
                   />
