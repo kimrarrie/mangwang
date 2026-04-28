@@ -74,7 +74,7 @@ export default function DiaryCard({ diary, onClick, onDelete }: DiaryCardProps) 
 
           {/* 드롭다운 메뉴 */}
           {menuOpen && (
-            <div className="absolute top-10 right-0 bg-white rounded-xl shadow-lg border border-paper-200 overflow-hidden min-w-[120px]">
+            <div className="absolute top-10 right-0 bg-paper-50 rounded-xl shadow-lg border border-paper-200 overflow-hidden min-w-[120px]">
               <button
                 onClick={(e) => {
                   e.stopPropagation()

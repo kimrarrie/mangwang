@@ -140,7 +140,7 @@ export default function ProfileEditPage() {
             onChange={(e) => setDisplayName(e.target.value)}
             placeholder="이름을 입력하세요"
             maxLength={10}
-            className="w-full px-4 py-3 rounded-xl border border-paper-300 bg-white text-ink-800 font-handwriting text-lg focus:outline-none focus:ring-2 focus:ring-amber-300 transition"
+            className="w-full px-4 py-3 rounded-xl border border-paper-300 bg-paper-50 text-ink-800 font-handwriting text-lg focus:outline-none focus:ring-2 focus:ring-amber-300 transition"
           />
         </section>
 
@@ -158,7 +158,7 @@ export default function ProfileEditPage() {
             onChange={(e) => setCustomInitial(e.target.value.slice(0, 1))}
             placeholder={getInitial(authUser.id)}
             maxLength={1}
-            className="w-20 px-4 py-3 rounded-xl border border-paper-300 bg-white text-ink-800 font-handwriting text-2xl text-center focus:outline-none focus:ring-2 focus:ring-amber-300 transition"
+            className="w-20 px-4 py-3 rounded-xl border border-paper-300 bg-paper-50 text-ink-800 font-handwriting text-2xl text-center focus:outline-none focus:ring-2 focus:ring-amber-300 transition"
           />
         </section>
 

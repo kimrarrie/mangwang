@@ -112,7 +112,7 @@ export default function MemberProfilePage() {
 
 function StatCard({ emoji, label, value }: { emoji: string; label: string; value: string }) {
   return (
-    <div className="bg-white rounded-xl border border-paper-200 p-4 text-center">
+    <div className="bg-paper-50 rounded-xl border border-paper-200 p-4 text-center">
       <p className="text-2xl mb-1">{emoji}</p>
       <p className="font-handwriting text-xl text-ink-800 font-bold">{value}</p>
       <p className="text-xs text-ink-700/50 mt-0.5">{label}</p>

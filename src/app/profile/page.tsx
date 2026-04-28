@@ -121,7 +121,7 @@ export default function ProfilePage() {
           <h3 className="font-handwriting text-lg text-ink-700/70 mb-3">
             계정
           </h3>
-          <div className="bg-white rounded-xl border border-paper-200 overflow-hidden">
+          <div className="bg-paper-50 rounded-xl border border-paper-200 overflow-hidden">
             <div className="px-4 py-3 flex items-center justify-between">
               <div>
                 <p className="text-sm text-ink-800 font-medium">연결된 계정</p>
@@ -148,7 +148,7 @@ export default function ProfilePage() {
 
 function StatCard({ emoji, label, value }: { emoji: string; label: string; value: string }) {
   return (
-    <div className="bg-white rounded-xl border border-paper-200 p-4 text-center">
+    <div className="bg-paper-50 rounded-xl border border-paper-200 p-4 text-center">
       <p className="text-2xl mb-1">{emoji}</p>
       <p className="font-handwriting text-xl text-ink-800 font-bold">{value}</p>
       <p className="text-xs text-ink-700/50 mt-0.5">{label}</p>
@@ -164,7 +164,7 @@ function MemberRow({ member, onClick }: { member: User; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
-      className="w-full flex items-center gap-3 px-4 py-3 bg-white rounded-xl border border-paper-200 hover:bg-paper-100 transition text-left"
+      className="w-full flex items-center gap-3 px-4 py-3 bg-paper-50 rounded-xl border border-paper-200 hover:bg-paper-100 transition text-left"
     >
       <div
         className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold ring-2 ring-white ${avatar.className}`}

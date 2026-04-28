@@ -87,7 +87,7 @@ export default function DiaryBook({ book, onClick, onMenuAction }: DiaryBookProp
         <>
           {/* 바깥 클릭으로 닫기 */}
           <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
-          <div className="absolute top-10 right-1 z-50 bg-white rounded-xl shadow-xl border border-paper-200 overflow-hidden w-36">
+          <div className="absolute top-10 right-1 z-50 bg-paper-50 rounded-xl shadow-xl border border-paper-200 overflow-hidden w-36">
             <button
               onClick={(e) => {
                 e.stopPropagation()
