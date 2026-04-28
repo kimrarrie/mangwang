@@ -5,18 +5,47 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ===== 색상 변수 — RGB 채널 형식 (Tailwind opacity modifier 호환) ===== */
+:root {
+  /* 라이트 팔레트 */
+  --color-paper-50:  254 252 248;  /* #fefcf8 — 가장 밝은 종이색 */
+  --color-paper-100: 253 246 232;  /* #fdf6e8 — 크림색 배경 */
+  --color-paper-200: 245 230 200;  /* #f5e6c8 — 노트 라인 색 */
+  --color-paper-300: 232 213 168;  /* #e8d5a8 — 테두리 */
+
+  --color-ink-700: 61 53 41;       /* #3d3529 — 본문 텍스트 */
+  --color-ink-800: 42 36 27;       /* #2a241b — 제목 */
+  --color-ink-900: 26 22 16;       /* #1a1610 — 진한 텍스트 */
+}
+
+.dark {
+  /* 다크 팔레트 — 따뜻한 잉크/종이 감성 유지 */
+  --color-paper-50:  28 26 22;     /* #1c1a16 */
+  --color-paper-100: 37 33 24;     /* #252118 */
+  --color-paper-200: 58 50 40;     /* #3a3228 */
+  --color-paper-300: 74 64 53;     /* #4a4035 */
+
+  --color-ink-700: 212 201 176;    /* #d4c9b0 */
+  --color-ink-800: 232 221 200;    /* #e8ddc8 */
+  --color-ink-900: 242 234 216;    /* #f2ead8 */
+}
+
 /* ===== 종이 질감 배경 ===== */
+/* background-color는 layout.tsx의 bg-paper-100이 CSS 변수로 처리 */
 body {
-  background-color: #fdf6e8;
-  /* 미세한 종이 텍스처 패턴 */
   background-image: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100' height='100' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+}
+
+/* 다크모드에서 텍스처를 더 은은하게 */
+.dark body {
+  background-image: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100' height='100' filter='url(%23noise)' opacity='0.015'/%3E%3C/svg%3E");
 }
 
 /* ===== 일기장 카드 스타일 ===== */
 @layer components {
-  /* 종이 느낌의 카드 */
+  /* 종이 느낌의 카드 — bg-white → bg-paper-50 (CSS 변수 적용 범위에 포함) */
   .paper-card {
-    @apply bg-white rounded-xl shadow-diary transition-all duration-200;
+    @apply bg-paper-50 rounded-xl shadow-diary transition-all duration-200;
     background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.2' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='60' height='60' filter='url(%23n)' opacity='0.02'/%3E%3C/svg%3E");
   }
 

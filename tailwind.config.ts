@@ -7,20 +7,23 @@ const config: Config = {
     './src/app/**/*.{js,ts,jsx,tsx,mdx}',
     './src/features/**/*.{js,ts,jsx,tsx,mdx}',
   ],
+  // 'class' 전략: <html class="dark"> 로 다크모드 토글
+  darkMode: 'class',
   theme: {
     extend: {
-      // 만광 전용 색상
+      // 만광 전용 색상 — CSS 변수(RGB 채널) 참조
+      // <alpha-value> 플레이스홀더 덕분에 bg-paper-100/80 같은 opacity modifier 자동 호환
       colors: {
         paper: {
-          50: '#fefcf8',   // 가장 밝은 종이색
-          100: '#fdf6e8',  // 크림색 배경
-          200: '#f5e6c8',  // 노트 라인 색
-          300: '#e8d5a8',  // 테두리
+          50:  'rgb(var(--color-paper-50)  / <alpha-value>)',
+          100: 'rgb(var(--color-paper-100) / <alpha-value>)',
+          200: 'rgb(var(--color-paper-200) / <alpha-value>)',
+          300: 'rgb(var(--color-paper-300) / <alpha-value>)',
         },
         ink: {
-          700: '#3d3529',  // 본문 텍스트
-          800: '#2a241b',  // 제목
-          900: '#1a1610',  // 진한 텍스트
+          700: 'rgb(var(--color-ink-700) / <alpha-value>)',
+          800: 'rgb(var(--color-ink-800) / <alpha-value>)',
+          900: 'rgb(var(--color-ink-900) / <alpha-value>)',
         },
       },
       // 손글씨 폰트

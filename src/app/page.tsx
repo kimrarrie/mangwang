@@ -6,11 +6,13 @@ import DiaryCard from '@/components/ui/DiaryCard'
 import { getInitial, getAvatarStyle } from '@/features/diary/mockData'
 import { useUser } from '@/features/auth/useUser'
 import { getSortedDiaries, deleteDiary } from '@/lib/supabase/diaryService'
+import { useTheme } from '@/components/ThemeProvider'
 import type { Diary } from '@/features/diary/types'
 
 export default function HomePage() {
   const router = useRouter()
   const { user } = useUser()
+  const { isDark, toggleTheme } = useTheme()
   const [diaries, setDiaries] = useState<Diary[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -68,19 +70,31 @@ export default function HomePage() {
   return (
     <div className="min-h-screen">
       {/* 헤더 */}
-      <header className="sticky top-0 z-10 backdrop-blur-sm bg-paper-100/80 border-b border-paper-200">
+      <header className="sticky top-0 z-30 backdrop-blur-sm bg-paper-100/80 border-b border-paper-200">
         <div className="max-w-lg mx-auto px-5 py-4 flex items-center justify-between">
           <h1 className="font-handwriting text-2xl text-ink-800 font-bold">
             만남의 광장
           </h1>
-          {/* 프로필 아이콘 */}
-          <button
-            onClick={() => router.push('/profile')}
-            className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shadow-sm ring-2 ring-white hover:scale-105 active:scale-95 transition ${headerAvatar?.className || 'bg-gray-200'}`}
-            style={headerAvatar?.style}
-          >
-            {user && !loading ? getInitial(user.id) : ''}
-          </button>
+          <div className="flex items-center gap-2">
+            {/* 다크모드 토글 버튼 — 마운트 전(isDark===null)엔 숨김 */}
+            {isDark !== null && (
+              <button
+                onClick={toggleTheme}
+                className="w-9 h-9 rounded-full flex items-center justify-center text-lg hover:scale-105 active:scale-95 transition"
+                aria-label={isDark ? '라이트 모드로 전환' : '다크 모드로 전환'}
+              >
+                {isDark ? '☀️' : '🌙'}
+              </button>
+            )}
+            {/* 프로필 아이콘 */}
+            <button
+              onClick={() => router.push('/profile')}
+              className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shadow-sm ring-2 ring-white hover:scale-105 active:scale-95 transition ${headerAvatar?.className || 'bg-gray-200'}`}
+              style={headerAvatar?.style}
+            >
+              {user && !loading ? getInitial(user.id) : ''}
+            </button>
+          </div>
         </div>
       </header>
 
