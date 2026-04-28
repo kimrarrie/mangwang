@@ -29,6 +29,16 @@ export default function HomePage() {
     load()
   }, [user?.id])
 
+  // 에디터 경로 사전 로드 — 버튼 클릭 전에 JS 번들과 페이지를 미리 받아둠
+  useEffect(() => {
+    router.prefetch('/editor/new')
+  }, [router])
+
+  // 일기 목록이 뜨면 상위 3개 에디터 경로도 prefetch (덧붙임 클릭 시 빠르게 진입)
+  useEffect(() => {
+    diaries.slice(0, 3).forEach((d) => router.prefetch(`/editor/${d.id}`))
+  }, [diaries, router])
+
   // 프로필 로드 후 아바타 표시 (loading=false 이후에만)
   const headerAvatar = user && !loading ? getAvatarStyle(user.id) : null
 
