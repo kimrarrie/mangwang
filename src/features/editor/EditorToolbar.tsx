@@ -4,10 +4,14 @@ import { useEffect, useState } from 'react'
 
 // ===== 색상 팔레트 (펜/텍스트 공용, 가로 스크롤 가능) =====
 const COLORS = [
-  '#3d3529', '#000000', '#ffffff', '#7f8c8d',
-  '#c0392b', '#e74c3c', '#e67e22', '#f39c12',
-  '#f1c40f', '#27ae60', '#16a085', '#1abc9c',
-  '#3498db', '#2980b9', '#8e44ad', '#e84393',
+  // 뉴트럴
+  '#6b5744', '#000000', '#ffffff', '#7f8c8d',
+  // 기본
+  '#e74c3c', '#e67e22', '#f1c40f', '#27ae60',
+  '#1abc9c', '#3498db', '#8e44ad', '#e84393',
+  // 파스텔
+  '#ffb3ae', '#ffd4a8', '#fff0a8', '#b8eac0',
+  '#a8e8e0', '#b0d8f5', '#d4b8f0', '#ffb8d8',
 ]
 
 // ===== 배경 팔레트 (새 일기 생성 시 랜덤으로 하나 선택) =====
@@ -267,7 +271,7 @@ export default function EditorToolbar({
 
         {/* 메인 도구 — 텍스트/그리기/사진 */}
         <div className="flex items-center gap-1">
-          <ToolBtn icon="Aa" label="텍스트" active={mode === 'text'} onClick={() => handleModeToggle('text')} isText />
+          <ToolBtn icon="Aa" label="글쓰기" active={mode === 'text'} onClick={() => handleModeToggle('text')} isText />
           <ToolBtn icon="✏️" label="그리기" active={mode === 'draw'} onClick={() => handleModeToggle('draw')} />
           <ToolBtn icon="📷" label="사진" active={false} onClick={onPhotoClick} />
         </div>
