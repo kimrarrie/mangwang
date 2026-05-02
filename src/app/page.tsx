@@ -150,7 +150,11 @@ export default function HomePage() {
       <div className="fixed bottom-6 left-0 right-0 flex justify-center z-20">
         <button
           onClick={() => router.push('/editor/new')}
-          className="flex items-center gap-2 px-6 py-3.5 bg-ink-800 text-paper-50 rounded-full shadow-lg hover:bg-ink-900 transition-all hover:scale-105 active:scale-95 font-handwriting text-lg"
+          className="flex items-center gap-2 px-6 py-3.5 rounded-full transition-all hover:scale-105 active:scale-95 font-handwriting text-lg text-[#fefcf8]"
+          style={{
+            backgroundColor: '#C47C10',
+            boxShadow: '0 4px 20px rgba(196, 124, 16, 0.45), 0 2px 6px rgba(0,0,0,0.15)',
+          }}
         >
           <span className="text-xl">✏️</span>
           새 일기 쓰기
