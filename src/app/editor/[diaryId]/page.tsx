@@ -350,8 +350,8 @@ export default function EditorPage() {
           {/* 레이어 히스토리 패널 — 우측 하단, 밝은 반투명 */}
           {showLayerPanel && existingDiary && (
             <div className="absolute bottom-16 right-2 z-30 w-52 bg-white/60 backdrop-blur-xl rounded-2xl shadow-lg border border-white/40 overflow-hidden">
-              <div className="px-3 py-2 border-b border-ink-800/10">
-                <p className="text-ink-800/70 text-xs font-bold">히스토리</p>
+              <div className="px-3 py-2 border-b border-[#2a241b]/10">
+                <p className="text-[11px] font-bold text-[#2a241b]/70">히스토리</p>
               </div>
               <div className="flex flex-col py-1">
                 {/* 최신순 정렬: 배열을 뒤집어서 표시 */}
@@ -368,7 +368,7 @@ export default function EditorPage() {
                       key={originalIndex}
                       onClick={() => !isOriginal && toggleLayer(originalIndex)}
                       className={`flex items-center gap-2.5 px-3 py-2 transition ${
-                        isOriginal ? 'cursor-default' : 'hover:bg-ink-800/8'
+                        isOriginal ? 'cursor-default' : 'hover:bg-[#2a241b]/8'
                       } ${isHidden ? 'opacity-35' : ''}`}
                     >
                       {/* 프로필 원형 */}
@@ -380,11 +380,11 @@ export default function EditorPage() {
                       </div>
                       {/* 정보 */}
                       <div className="flex-1 text-left min-w-0">
-                        <p className="text-ink-800 text-[11px] font-medium truncate">
+                        <p className="text-[11px] font-medium truncate text-[#2a241b]">
                           {editor?.displayName || '알 수 없음'}
-                          {isOriginal && <span className="text-ink-800/40 ml-0.5">(오리지널)</span>}
+                          {isOriginal && <span className="text-[#2a241b]/40 ml-0.5">(오리지널)</span>}
                         </p>
-                        <p className="text-ink-800/40 text-[10px]">{timeLabel}</p>
+                        <p className="text-[10px] text-[#2a241b]/40">{timeLabel}</p>
                       </div>
                       {/* 눈 아이콘 */}
                       <span className="text-xs shrink-0">
