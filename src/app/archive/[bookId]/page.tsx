@@ -43,29 +43,25 @@ export default function SlideshowPage() {
   // 총 페이지 = 1(표지) + 일기 수
   const totalPages = book ? 1 + book.diaries.length : 0
 
+  // setState 업데이터 내부에서 side effect를 호출하면 React 렌더 타이밍이 어긋남
+  // → state 업데이트를 모두 바깥으로 분리하고 timeout에 약간의 버퍼(420ms) 추가
   const goNext = useCallback(() => {
-    if (isAnimating) return
-    setCurrentPage((p) => {
-      if (p >= totalPages - 1) return p
-      setPrevPage(p)
-      setSlideDirection('next')
-      setIsAnimating(true)
-      setTimeout(() => { setIsAnimating(false); setPrevPage(null); setSlideDirection(null) }, 400)
-      return p + 1
-    })
-  }, [totalPages, isAnimating])
+    if (isAnimating || currentPage >= totalPages - 1) return
+    setPrevPage(currentPage)
+    setCurrentPage((p) => p + 1)
+    setSlideDirection('next')
+    setIsAnimating(true)
+    setTimeout(() => { setIsAnimating(false); setPrevPage(null); setSlideDirection(null) }, 420)
+  }, [totalPages, isAnimating, currentPage])
 
   const goPrev = useCallback(() => {
-    if (isAnimating) return
-    setCurrentPage((p) => {
-      if (p <= 0) return p
-      setPrevPage(p)
-      setSlideDirection('prev')
-      setIsAnimating(true)
-      setTimeout(() => { setIsAnimating(false); setPrevPage(null); setSlideDirection(null) }, 400)
-      return p - 1
-    })
-  }, [isAnimating])
+    if (isAnimating || currentPage <= 0) return
+    setPrevPage(currentPage)
+    setCurrentPage((p) => p - 1)
+    setSlideDirection('prev')
+    setIsAnimating(true)
+    setTimeout(() => { setIsAnimating(false); setPrevPage(null); setSlideDirection(null) }, 420)
+  }, [isAnimating, currentPage])
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'ArrowRight' || e.key === ' ') {
