@@ -405,6 +405,7 @@ export default function EditorPage() {
             onTextSubmit={handleTextSubmit}
             onPhotoClick={handlePhotoClick}
             onUndo={() => canvasRef.current?.undo()}
+            bgColor={bgColor}
             showHistory={!!existingDiary && existingDiary.layers.length > 0}
             isHistoryOpen={showLayerPanel}
             onHistoryToggle={() => setShowLayerPanel(!showLayerPanel)}

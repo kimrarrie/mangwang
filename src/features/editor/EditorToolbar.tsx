@@ -47,6 +47,16 @@ export type TextOptions = {
   textAlign: string
 }
 
+// 배경색 밝기 계산 — 어두우면 true (흰색 텍스트 기본값으로)
+function isBgDark(hex: string): boolean {
+  if (!hex || hex === 'transparent') return false
+  const h = hex.replace('#', '')
+  const r = parseInt(h.slice(0, 2), 16)
+  const g = parseInt(h.slice(2, 4), 16)
+  const b = parseInt(h.slice(4, 6), 16)
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255 < 0.5
+}
+
 type EditorToolbarProps = {
   mode: ToolMode
   onModeChange: (mode: ToolMode) => void
@@ -55,6 +65,7 @@ type EditorToolbarProps = {
   onTextSubmit: (options: TextOptions) => void
   onPhotoClick: () => void           // 사진 버튼 클릭 → page에서 file input 열기
   onUndo: () => void
+  bgColor?: string                   // 배경색 — 글쓰기 기본 텍스트 색 자동 결정
   showHistory?: boolean
   isHistoryOpen?: boolean
   onHistoryToggle?: () => void
@@ -68,6 +79,7 @@ export default function EditorToolbar({
   onTextSubmit,
   onPhotoClick,
   onUndo,
+  bgColor,
   showHistory,
   isHistoryOpen,
   onHistoryToggle,
@@ -101,6 +113,12 @@ export default function EditorToolbar({
   }, [mode])
 
   const handleModeToggle = (newMode: ToolMode) => {
+    // 글쓰기 모드 진입 시 배경 밝기에 따라 기본 텍스트 색 자동 전환
+    if (newMode === 'text' && mode !== 'text') {
+      const autoColor = isBgDark(bgColor ?? '') ? '#ffffff' : COLORS[0]
+      setSelectedColor(autoColor)
+      onColorChange(autoColor)
+    }
     onModeChange(mode === newMode ? 'none' : newMode)
   }
 
@@ -127,7 +145,7 @@ export default function EditorToolbar({
       {/* ===== 텍스트 입력 오버레이 — 위쪽 정렬 + 키보드만큼 아래 패딩 ===== */}
       {mode === 'text' && (
         <div
-          className="absolute inset-0 z-20 bg-black/60 flex flex-col items-center px-6 overflow-y-auto"
+          className="absolute inset-0 z-20 bg-black/35 flex flex-col items-center px-6 overflow-y-auto"
           style={{ paddingTop: '18vh', paddingBottom: keyboardOffset + 16 }}
         >
           {/* 텍스트 입력 */}
