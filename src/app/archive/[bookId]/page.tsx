@@ -37,31 +37,16 @@ export default function SlideshowPage() {
   const book = useMemo(() => getBookById(bookId, diaries), [bookId, diaries])
 
   const [currentPage, setCurrentPage] = useState(0)
-  const [prevPage, setPrevPage] = useState<number | null>(null)
-  const [slideDirection, setSlideDirection] = useState<'next' | 'prev' | null>(null)
-  const [isAnimating, setIsAnimating] = useState(false)
   // 총 페이지 = 1(표지) + 일기 수
   const totalPages = book ? 1 + book.diaries.length : 0
 
-  // setState 업데이터 내부에서 side effect를 호출하면 React 렌더 타이밍이 어긋남
-  // → state 업데이트를 모두 바깥으로 분리하고 timeout에 약간의 버퍼(420ms) 추가
   const goNext = useCallback(() => {
-    if (isAnimating || currentPage >= totalPages - 1) return
-    setPrevPage(currentPage)
-    setCurrentPage((p) => p + 1)
-    setSlideDirection('next')
-    setIsAnimating(true)
-    setTimeout(() => { setIsAnimating(false); setPrevPage(null); setSlideDirection(null) }, 420)
-  }, [totalPages, isAnimating, currentPage])
+    setCurrentPage((p) => Math.min(p + 1, totalPages - 1))
+  }, [totalPages])
 
   const goPrev = useCallback(() => {
-    if (isAnimating || currentPage <= 0) return
-    setPrevPage(currentPage)
-    setCurrentPage((p) => p - 1)
-    setSlideDirection('prev')
-    setIsAnimating(true)
-    setTimeout(() => { setIsAnimating(false); setPrevPage(null); setSlideDirection(null) }, 420)
-  }, [isAnimating, currentPage])
+    setCurrentPage((p) => Math.max(p - 1, 0))
+  }, [])
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'ArrowRight' || e.key === ' ') {
@@ -147,60 +132,12 @@ export default function SlideshowPage() {
           {currentPage + 1} / {totalPages}
         </div>
 
-        {/* 페이지 콘텐츠 — 겹침 애니메이션 */}
+        {/* 페이지 콘텐츠 — 즉시 전환 */}
         <div className="flex-1 relative overflow-hidden">
-          {/*
-            다음 페이지(next): 현재 페이지가 위에서 왼쪽으로 사라짐, 새 페이지는 뒤에 대기
-            이전 페이지(prev): 새 페이지가 왼쪽에서 위로 들어옴, 이전 페이지는 뒤에 대기
-          */}
-
-          {slideDirection === 'next' && prevPage !== null ? (
-            <>
-              {/* 뒤: 새 페이지 (가만히 있음) */}
-              <div className="absolute inset-0 z-0">
-                {renderPage(currentPage)}
-              </div>
-              {/* 앞: 이전 페이지가 왼쪽으로 사라짐 */}
-              <div className="absolute inset-0 z-10 page-slide-out-left">
-                {renderPage(prevPage)}
-              </div>
-            </>
-          ) : slideDirection === 'prev' && prevPage !== null ? (
-            <>
-              {/* 뒤: 이전 페이지 (가만히 있음) */}
-              <div className="absolute inset-0 z-0">
-                {renderPage(prevPage)}
-              </div>
-              {/* 앞: 새 페이지가 왼쪽에서 들어옴 */}
-              <div className="absolute inset-0 z-10 page-slide-in-left">
-                {renderPage(currentPage)}
-              </div>
-            </>
-          ) : (
-            /* 애니메이션 없을 때 — 현재 페이지만 표시 */
-            <div className="absolute inset-0">
-              {renderPage(currentPage)}
-            </div>
-          )}
+          <div className="absolute inset-0">
+            {renderPage(currentPage)}
+          </div>
         </div>
-
-        {/* 페이지 전환 애니메이션 */}
-        <style jsx global>{`
-          .page-slide-out-left {
-            animation: slideOutLeft 0.4s ease-in-out forwards;
-          }
-          .page-slide-in-left {
-            animation: slideInLeft 0.4s ease-in-out forwards;
-          }
-          @keyframes slideOutLeft {
-            from { transform: translateX(0); }
-            to { transform: translateX(-100%); }
-          }
-          @keyframes slideInLeft {
-            from { transform: translateX(-100%); }
-            to { transform: translateX(0); }
-          }
-        `}</style>
 
         {/* 좌/우 네비게이션 버튼 */}
         {currentPage > 0 && (
