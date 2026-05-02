@@ -256,7 +256,7 @@ export default function EditorPage() {
   // 기존 일기 로딩 중이면 스피너 표시
   if (isLoadingDiary) {
     return (
-      <div className="fixed inset-0 bg-black flex items-center justify-center">
+      <div className="theme-light-forced fixed inset-0 bg-black flex items-center justify-center">
         <p className="text-white/60 font-handwriting text-xl">불러오는 중...</p>
       </div>
     )
@@ -264,7 +264,7 @@ export default function EditorPage() {
 
   return (
     <div
-      className="fixed inset-0 bg-black flex flex-col items-center justify-center"
+      className="theme-light-forced fixed inset-0 bg-black flex flex-col items-center justify-center"
       onKeyDown={handleKeyDown}
       tabIndex={0}
     >
