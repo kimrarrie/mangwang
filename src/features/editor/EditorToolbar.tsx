@@ -280,7 +280,8 @@ export default function EditorToolbar({
       )}
 
       {/* ===== 메인 하단 도구 바 ===== */}
-      <div className="absolute bottom-0 left-0 right-0 z-10 flex items-center justify-between px-4 py-2 bg-ink-800/90 backdrop-blur-sm">
+      {/* bg-ink-800은 다크모드에서 밝은 베이지로 바뀌므로 에디터는 고정 색상 사용 */}
+      <div className="absolute bottom-0 left-0 right-0 z-10 flex items-center justify-between px-4 py-2 bg-[#2a241b]/90 backdrop-blur-sm">
         {/* 되돌리기 */}
         <button onClick={onUndo} className="flex items-center gap-1 px-3 py-2 rounded-lg hover:bg-white/10 transition">
           <span className="text-lg">↩️</span>
