@@ -370,6 +370,12 @@ const DiaryCanvas = forwardRef<CanvasHandle, DiaryCanvasProps>(
         const canvas = fabricRef.current
         if (!canvas || historyRef.current.length <= 1) return
 
+        // 그리기 세션 중 undo → drawingPathsRef에서도 마지막 path 제거
+        // 그렇지 않으면 세션 종료 시 undo된 path가 그룹에 포함되어 다시 나타남
+        if (isDrawingSessionRef.current && drawingPathsRef.current.length > 0) {
+          drawingPathsRef.current.pop()
+        }
+
         isUndoing.current = true
         historyRef.current.pop()
         const prev = historyRef.current[historyRef.current.length - 1]
