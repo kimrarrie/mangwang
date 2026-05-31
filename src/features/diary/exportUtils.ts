@@ -23,12 +23,23 @@ async function loadImage(src: string): Promise<HTMLImageElement> {
 
 // ===== PDF 내보내기 =====
 
+// ArrayBuffer → base64 변환 (청크 단위 처리 — 대용량 폰트 파일에서 콜 스택 초과 방지)
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer)
+  const CHUNK = 8192
+  let binary = ''
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK))
+  }
+  return btoa(binary)
+}
+
 // 나눔고딕 TTF를 jsDelivr CDN에서 받아 jsPDF에 등록 (한글 지원)
 async function registerKoreanFont(pdf: InstanceType<typeof import('jspdf').default>) {
   const url = 'https://cdn.jsdelivr.net/gh/google/fonts/ofl/nanumgothic/NanumGothic-Regular.ttf'
   const res = await fetch(url)
   const buffer = await res.arrayBuffer()
-  const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)))
+  const base64 = arrayBufferToBase64(buffer)
   pdf.addFileToVFS('NanumGothic-Regular.ttf', base64)
   pdf.addFont('NanumGothic-Regular.ttf', 'NanumGothic', 'normal')
 }
