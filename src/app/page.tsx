@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import DiaryCard from '@/components/ui/DiaryCard'
 import { getInitial, getAvatarStyle } from '@/features/diary/mockData'
@@ -127,57 +127,7 @@ export default function HomePage() {
 
         {/* ===== 핀 스토리 스트립 ===== */}
         {!loading && diaries.some((d) => d.isPinned) && (
-          <div className="mb-2 -mx-5 px-5">
-            {/* 섹션 제목 */}
-            <p className="font-handwriting text-sm text-ink-700/50 mb-2 flex items-center gap-1">
-              <span>📌</span> 고정 일기
-            </p>
-            {/* pt-2 pl-1: 링이 위/왼쪽에 잘리지 않도록 여백 확보 */}
-            <div className="flex gap-5 overflow-x-auto no-scrollbar pt-2 pb-3 pl-1">
-              {diaries.filter((d) => d.isPinned).map((diary) => {
-                const lastLayer = diary.layers[diary.layers.length - 1]
-                const thumbSrc = lastLayer?.thumbDataUrl ?? lastLayer?.imageDataUrl
-                const avatar = getAvatarStyle(diary.createdBy)
-                const isPinnedUnread = diary.isPinnedUnread
-
-                return (
-                  <button
-                    key={diary.id}
-                    onClick={() => router.push(`/editor/${diary.id}`)}
-                    className="flex flex-col items-center gap-3 shrink-0"
-                  >
-                    {/* 링은 바깥 div에, overflow-hidden은 안쪽 div에 분리
-                        → 링이 부모 스크롤 영역에 잘리지 않음
-                        미읽음: 파란 포인트 컬러(고정값), 읽음: 흐린 베이지(고정값) */}
-                    <div
-                      className="w-14 h-14 rounded-full ring-[3px] ring-offset-2"
-                      style={{
-                        '--tw-ring-color': isPinnedUnread ? '#3B82F6' : '#c9b99a',
-                        '--tw-ring-offset-color': 'var(--color-paper-50, #fefcf8)',
-                      } as React.CSSProperties}
-                    >
-                      <div className="w-full h-full rounded-full overflow-hidden">
-                        {thumbSrc ? (
-                          <img src={thumbSrc} alt="" className="w-full h-full object-cover" />
-                        ) : (
-                          <div
-                            className={`w-full h-full flex items-center justify-center text-base font-bold ${avatar.className}`}
-                            style={avatar.style}
-                          >
-                            {getInitial(diary.createdBy)}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    {/* 제목 */}
-                    <p className="text-[10px] text-ink-700/60 max-w-[56px] truncate text-center leading-tight">
-                      {diary.title}
-                    </p>
-                  </button>
-                )
-              })}
-            </div>
-          </div>
+          <PinStrip diaries={diaries} onNavigate={(id) => router.push(`/editor/${id}`)} />
         )}
 
         {/* 일기 목록 */}
@@ -267,6 +217,84 @@ export default function HomePage() {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+// ===== 핀 스트립 컴포넌트 =====
+
+function PinStrip({ diaries, onNavigate }: { diaries: Diary[]; onNavigate: (id: string) => void }) {
+  const stripRef = useRef<HTMLDivElement>(null)
+
+  // PC 마우스 휠 → 가로 스크롤 변환
+  useEffect(() => {
+    const el = stripRef.current
+    if (!el) return
+    const handler = (e: WheelEvent) => {
+      if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+        e.preventDefault()
+        el.scrollLeft += e.deltaY
+      }
+    }
+    el.addEventListener('wheel', handler, { passive: false })
+    return () => el.removeEventListener('wheel', handler)
+  }, [])
+
+  // 정렬: 미읽음 먼저, 같은 그룹 내 pinned_at 최신순
+  const sorted = useMemo(() => {
+    return [...diaries.filter((d) => d.isPinned)].sort((a, b) => {
+      if (a.isPinnedUnread !== b.isPinnedUnread) return a.isPinnedUnread ? -1 : 1
+      const aT = a.pinnedAt ?? a.createdAt
+      const bT = b.pinnedAt ?? b.createdAt
+      return bT.localeCompare(aT)
+    })
+  }, [diaries])
+
+  return (
+    <div className="mb-2 -mx-5 px-5">
+      <p className="font-handwriting text-sm text-ink-700/50 mb-2 flex items-center gap-1">
+        <span>📌</span> 고정 일기
+      </p>
+      {/* pt-2 pb-3 pl-1: outline이 잘리지 않도록 여백 */}
+      <div ref={stripRef} className="flex gap-5 overflow-x-auto no-scrollbar pt-2 pb-3 pl-1 cursor-grab active:cursor-grabbing">
+        {sorted.map((diary) => {
+          const lastLayer = diary.layers[diary.layers.length - 1]
+          const thumbSrc = lastLayer?.thumbDataUrl ?? lastLayer?.imageDataUrl
+          const avatar = getAvatarStyle(diary.createdBy)
+          const unread = diary.isPinnedUnread
+
+          return (
+            <button
+              key={diary.id}
+              onClick={() => onNavigate(diary.id)}
+              className="flex flex-col items-center gap-3 shrink-0"
+            >
+              {/* outline으로 링 표현 — Tailwind ring과 달리 부모 overflow에 잘리지 않음 */}
+              <div
+                className="w-14 h-14 rounded-full overflow-hidden"
+                style={{
+                  outline: `3px solid ${unread ? '#3B82F6' : '#c9b99a'}`,
+                  outlineOffset: '2px',
+                }}
+              >
+                {thumbSrc ? (
+                  <img src={thumbSrc} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <div
+                    className={`w-full h-full flex items-center justify-center text-base font-bold ${avatar.className}`}
+                    style={avatar.style}
+                  >
+                    {getInitial(diary.createdBy)}
+                  </div>
+                )}
+              </div>
+              <p className="text-[10px] text-ink-700/60 max-w-[56px] truncate text-center leading-tight">
+                {diary.title}
+              </p>
+            </button>
+          )
+        })}
+      </div>
     </div>
   )
 }
