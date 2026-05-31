@@ -23,25 +23,44 @@ async function loadImage(src: string): Promise<HTMLImageElement> {
 
 // ===== PDF 내보내기 =====
 
-// ArrayBuffer → base64 변환 (청크 단위 처리 — 대용량 폰트 파일에서 콜 스택 초과 방지)
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer)
-  const CHUNK = 8192
-  let binary = ''
-  for (let i = 0; i < bytes.length; i += CHUNK) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK))
-  }
-  return btoa(binary)
-}
+// PDF용 오버레이 — 영상 오버레이와 동일한 스타일, 캔버스에 직접 그려서 한글 정상 렌더링
+function drawPdfOverlay(ctx: CanvasRenderingContext2D, diary: Diary, W: number, H: number) {
+  const creator = diary.layers[0] ? getUserById(diary.layers[0].editorId) : null
+  const lastEditor = diary.layers.length > 1
+    ? getUserById(diary.layers[diary.layers.length - 1].editorId)
+    : null
+  const date = new Date(diary.createdAt)
+  const dateStr = `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')}`
 
-// 나눔고딕 TTF를 jsDelivr CDN에서 받아 jsPDF에 등록 (한글 지원)
-async function registerKoreanFont(pdf: InstanceType<typeof import('jspdf').default>) {
-  const url = 'https://cdn.jsdelivr.net/gh/google/fonts/ofl/nanumgothic/NanumGothic-Regular.ttf'
-  const res = await fetch(url)
-  const buffer = await res.arrayBuffer()
-  const base64 = arrayBufferToBase64(buffer)
-  pdf.addFileToVFS('NanumGothic-Regular.ttf', base64)
-  pdf.addFont('NanumGothic-Regular.ttf', 'NanumGothic', 'normal')
+  // 하단 그라디언트
+  const grad = ctx.createLinearGradient(0, H - 220, 0, H)
+  grad.addColorStop(0, 'rgba(0,0,0,0)')
+  grad.addColorStop(0.35, 'rgba(0,0,0,0.55)')
+  grad.addColorStop(1, 'rgba(0,0,0,0.78)')
+  ctx.fillStyle = grad
+  ctx.fillRect(0, H - 220, W, 220)
+
+  ctx.textAlign = 'left'
+
+  // 제목
+  ctx.fillStyle = 'rgba(255,255,255,0.95)'
+  ctx.font = `bold 22px sans-serif`
+  ctx.fillText(diary.title, 20, H - 110, W - 40)
+
+  // 날짜
+  ctx.fillStyle = 'rgba(255,255,255,0.55)'
+  ctx.font = `14px sans-serif`
+  ctx.fillText(dateStr, 20, H - 80)
+
+  // 작성자 정보
+  const authorParts: string[] = []
+  if (creator) authorParts.push(`✍️ ${creator.displayName} 시작`)
+  if (lastEditor && lastEditor.id !== creator?.id) authorParts.push(`${lastEditor.displayName} 덧붙임`)
+  if (diary.layers.length > 1) authorParts.push(`총 ${diary.layers.length}레이어`)
+
+  ctx.fillStyle = 'rgba(255,255,255,0.65)'
+  ctx.font = `13px sans-serif`
+  ctx.fillText(authorParts.join('  ·  '), 20, H - 52)
 }
 
 export async function exportSelectedToPDF(
@@ -54,9 +73,6 @@ export async function exportSelectedToPDF(
   const H = 932
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'px', format: [W, H], compress: true })
 
-  // 한글 폰트 등록 (내보내기 시 1회 다운로드 ~300KB)
-  await registerKoreanFont(pdf)
-
   let globalLayer = 0
   const totalLayers = diaries.reduce((s, d) => s + Math.max(d.layers.length, 1), 0)
 
@@ -66,6 +82,8 @@ export async function exportSelectedToPDF(
 
     if (i > 0) pdf.addPage()
 
+    // 캔버스에 레이어 + 오버레이를 통째로 그려서 이미지로 PDF에 삽입
+    // → jsPDF 폰트 의존 없이 브라우저 기본 렌더링으로 한글 정확하게 표시
     const canvas = document.createElement('canvas')
     canvas.width = W
     canvas.height = H
@@ -76,21 +94,10 @@ export async function exportSelectedToPDF(
     const images = await Promise.all(diary.layers.map((l) => loadImage(l.imageDataUrl)))
     for (const img of images) ctx.drawImage(img, 0, 0, W, H)
 
-    pdf.addImage(canvas.toDataURL('image/jpeg', 0.85), 'JPEG', 0, 0, W, H)
+    // 오버레이 (제목, 날짜, 작성자) — 캔버스 2D로 직접 그리기
+    drawPdfOverlay(ctx, diary, W, H)
 
-    // 제목/날짜 오버레이
-    pdf.setFillColor(0, 0, 0)
-    pdf.setGState(pdf.GState({ opacity: 0.45 }))
-    pdf.rect(0, H - 100, W, 100, 'F')
-    pdf.setGState(pdf.GState({ opacity: 1 }))
-    pdf.setTextColor(255, 255, 255)
-    pdf.setFontSize(20)
-    pdf.setFont('NanumGothic', 'normal')
-    pdf.text(diary.title, 20, H - 60)
-    const date = new Date(diary.createdAt)
-    pdf.setFontSize(13)
-    pdf.setTextColor(200, 200, 200)
-    pdf.text(`${date.getFullYear()}.${date.getMonth() + 1}.${date.getDate()}`, 20, H - 38)
+    pdf.addImage(canvas.toDataURL('image/jpeg', 0.88), 'JPEG', 0, 0, W, H)
   }
 
   pdf.save('mangwang-diary.pdf')
