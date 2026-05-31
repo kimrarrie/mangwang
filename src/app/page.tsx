@@ -262,6 +262,7 @@ function PinStrip({ diaries, onNavigate }: { diaries: Diary[]; onNavigate: (id: 
           const thumbSrc = lastLayer?.thumbDataUrl ?? lastLayer?.imageDataUrl
           const avatar = getAvatarStyle(diary.createdBy)
           const unread = diary.isPinnedUnread
+          const ringColor = unread ? '#3B82F6' : '#c9b99a'
 
           return (
             <button
@@ -269,26 +270,31 @@ function PinStrip({ diaries, onNavigate }: { diaries: Diary[]; onNavigate: (id: 
               onClick={() => onNavigate(diary.id)}
               className="flex flex-col items-center gap-3 shrink-0"
             >
-              {/* outline으로 링 표현 — Tailwind ring과 달리 부모 overflow에 잘리지 않음 */}
+              {/* border + padding 방식: 요소 경계 안에 링이 포함되어 overflow에 절대 안 잘림 */}
               <div
-                className="w-14 h-14 rounded-full overflow-hidden"
+                className="rounded-full shrink-0"
                 style={{
-                  outline: `3px solid ${unread ? '#3B82F6' : '#c9b99a'}`,
-                  outlineOffset: '2px',
+                  width: 64,
+                  height: 64,
+                  border: `3px solid ${ringColor}`,
+                  padding: 3,
+                  boxSizing: 'border-box' as const,
                 }}
               >
-                {thumbSrc ? (
-                  <img src={thumbSrc} alt="" className="w-full h-full object-cover" />
-                ) : (
-                  <div
-                    className={`w-full h-full flex items-center justify-center text-base font-bold ${avatar.className}`}
-                    style={avatar.style}
-                  >
-                    {getInitial(diary.createdBy)}
-                  </div>
-                )}
+                <div className="w-full h-full rounded-full overflow-hidden">
+                  {thumbSrc ? (
+                    <img src={thumbSrc} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <div
+                      className={`w-full h-full flex items-center justify-center text-base font-bold ${avatar.className}`}
+                      style={avatar.style}
+                    >
+                      {getInitial(diary.createdBy)}
+                    </div>
+                  )}
+                </div>
               </div>
-              <p className="text-[10px] text-ink-700/60 max-w-[56px] truncate text-center leading-tight">
+              <p className="text-[10px] text-ink-700/60 max-w-[64px] truncate text-center leading-tight">
                 {diary.title}
               </p>
             </button>
