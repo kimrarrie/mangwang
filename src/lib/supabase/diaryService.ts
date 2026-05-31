@@ -451,6 +451,33 @@ export async function deleteDiary(diaryId: string): Promise<void> {
   if (error) throw new Error(`일기 삭제 실패: ${error.message}`)
 }
 
+// ===== 전체 데이터 삭제 (보관 후 초기화용) =====
+export async function deleteAllData(): Promise<void> {
+  const supabase = createClient()
+
+  // 1) 모든 레이어 이미지 경로 수집
+  const { data: layers } = await supabase.from('diary_layers').select('image_url')
+  const imagePaths = (layers || []).map((l) => l.image_url)
+
+  // 썸네일 경로도 파생
+  const thumbPaths = imagePaths.map((p) => p.replace(/(\.\w+)$/, '_thumb.jpg'))
+  const allPaths = [...imagePaths, ...thumbPaths]
+
+  // 2) Storage 이미지 삭제 (50개씩 나눠서)
+  for (let i = 0; i < allPaths.length; i += 50) {
+    const chunk = allPaths.slice(i, i + 50)
+    await supabase.storage.from('diary-images').remove(chunk)
+  }
+
+  // 3) DB 데이터 삭제 (의존성 순서 역순)
+  await supabase.from('diary_reads').delete().neq('diary_id', '')
+  await supabase.from('diary_layers').delete().neq('diary_id', '')
+  await supabase.from('diaries').delete().neq('id', '')
+
+  // 4) 캐시 초기화
+  urlCache.clear()
+}
+
 export async function markDiaryAsRead(
   diaryId: string,
   userId: string,
