@@ -285,7 +285,7 @@ export default function EditorToolbar({
         {/* 되돌리기 */}
         <button onClick={onUndo} className="flex items-center gap-1 px-3 py-2 rounded-lg hover:bg-white/10 transition">
           <span className="text-lg">↩️</span>
-          <span className="text-[10px] text-white/50">되돌리기</span>
+          <span className="text-[10px] text-white/50 whitespace-nowrap">되돌리기</span>
         </button>
 
         {/* 메인 도구 — 텍스트/그리기/사진 */}
@@ -304,7 +304,7 @@ export default function EditorToolbar({
             }`}
           >
             <span className="text-lg">📋</span>
-            <span className="text-[10px] text-white/50">히스토리</span>
+            <span className="text-[10px] text-white/50 whitespace-nowrap">히스토리</span>
           </button>
         ) : (
           <div className="w-16" />
@@ -325,7 +325,7 @@ function ToolBtn({ icon, label, active, onClick, isText }: {
       }`}
     >
       <span className={isText ? 'text-base font-bold text-white' : 'text-lg'}>{icon}</span>
-      <span className="text-[10px] text-white/50">{label}</span>
+      <span className="text-[10px] text-white/50 whitespace-nowrap">{label}</span>
     </button>
   )
 }
