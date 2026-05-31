@@ -18,6 +18,8 @@ export type Diary = {
   editors: string[]           // 편집한 사람들의 userId 목록
   unreadEdits: number         // 안 읽은 편집 건수
   isPinned: boolean           // 상단 고정 여부 (모든 유저 공유)
+  pinnedAt?: string           // 핀된 시각
+  isPinnedUnread: boolean     // 핀된 이후 현재 유저가 아직 안 읽음
   createdAt: string
   lastEditedAt: string
 }

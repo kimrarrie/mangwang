@@ -138,7 +138,7 @@ export default function HomePage() {
                 const lastLayer = diary.layers[diary.layers.length - 1]
                 const thumbSrc = lastLayer?.thumbDataUrl ?? lastLayer?.imageDataUrl
                 const avatar = getAvatarStyle(diary.createdBy)
-                const hasUnread = diary.unreadEdits > 0
+                const isPinnedUnread = diary.isPinnedUnread
 
                 return (
                   <button
@@ -147,12 +147,14 @@ export default function HomePage() {
                     className="flex flex-col items-center gap-3 shrink-0"
                   >
                     {/* 링은 바깥 div에, overflow-hidden은 안쪽 div에 분리
-                        → 링이 부모 스크롤 영역에 잘리지 않음 */}
+                        → 링이 부모 스크롤 영역에 잘리지 않음
+                        미읽음: 파란 포인트 컬러(고정값), 읽음: 흐린 베이지(고정값) */}
                     <div
-                      className={`w-14 h-14 rounded-full ring-2 ring-offset-2 ${
-                        hasUnread ? avatar.ringClass : 'ring-[#c9b99a]'
-                      }`}
-                      style={hasUnread ? avatar.ringStyle : undefined}
+                      className="w-14 h-14 rounded-full ring-[3px] ring-offset-2"
+                      style={{
+                        '--tw-ring-color': isPinnedUnread ? '#3B82F6' : '#c9b99a',
+                        '--tw-ring-offset-color': 'var(--color-paper-50, #fefcf8)',
+                      } as React.CSSProperties}
                     >
                       <div className="w-full h-full rounded-full overflow-hidden">
                         {thumbSrc ? (

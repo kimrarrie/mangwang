@@ -232,13 +232,15 @@ export async function getSortedDiaries(userId: string): Promise<Diary[]> {
       .order('layer_order', { ascending: true }),
     supabase
       .from('diary_reads')
-      .select('diary_id, read_layer_count')
+      .select('diary_id, read_layer_count, last_read_at')
       .eq('user_id', userId),
   ])
 
   const readMap: Record<string, number> = {}
+  const lastReadAtMap: Record<string, string> = {}
   for (const row of readRows || []) {
     readMap[row.diary_id] = row.read_layer_count
+    if (row.last_read_at) lastReadAtMap[row.diary_id] = row.last_read_at
   }
 
   // 원본 + 썸네일 경로 모두 signed URL 요청 (썸네일이 없으면 조용히 스킵)
@@ -285,6 +287,10 @@ export async function getSortedDiaries(userId: string): Promise<Diary[]> {
       editors,
       unreadEdits,
       isPinned: d.is_pinned ?? false,
+      pinnedAt: d.pinned_at ?? undefined,
+      isPinnedUnread: !!d.is_pinned && !!d.pinned_at && (
+        !lastReadAtMap[d.id] || lastReadAtMap[d.id] < d.pinned_at
+      ),
       createdAt: d.created_at,
       lastEditedAt: d.last_edited_at,
     }
@@ -313,7 +319,7 @@ export async function getDiaryById(diaryId: string, userId: string): Promise<Dia
       .order('layer_order', { ascending: true }),
     supabase
       .from('diary_reads')
-      .select('read_layer_count')
+      .select('read_layer_count, last_read_at')
       .eq('diary_id', diaryId)
       .eq('user_id', userId)
       .single(),
@@ -351,6 +357,11 @@ export async function getDiaryById(diaryId: string, userId: string): Promise<Dia
     editors,
     unreadEdits: Math.max(0, layers.length - ((readRow as { read_layer_count: number } | null)?.read_layer_count || 0)),
     isPinned: d.is_pinned ?? false,
+    pinnedAt: d.pinned_at ?? undefined,
+    isPinnedUnread: !!d.is_pinned && !!d.pinned_at && (
+      !(readRow as { last_read_at?: string } | null)?.last_read_at ||
+      (readRow as { last_read_at?: string }).last_read_at! < d.pinned_at
+    ),
     createdAt: d.created_at,
     lastEditedAt: d.last_edited_at,
   }
@@ -362,7 +373,10 @@ export async function togglePin(diaryId: string, isPinned: boolean): Promise<voi
   const supabase = createClient()
   const { error } = await supabase
     .from('diaries')
-    .update({ is_pinned: isPinned })
+    .update({
+      is_pinned: isPinned,
+      pinned_at: isPinned ? new Date().toISOString() : null,
+    })
     .eq('id', diaryId)
   if (error) throw new Error(`핀 변경 실패: ${error.message}`)
 }
@@ -499,7 +513,12 @@ export async function markDiaryAsRead(
   const supabase = createClient()
   await supabase
     .from('diary_reads')
-    .upsert({ diary_id: diaryId, user_id: userId, read_layer_count: layerCount })
+    .upsert({
+      diary_id: diaryId,
+      user_id: userId,
+      read_layer_count: layerCount,
+      last_read_at: new Date().toISOString(),
+    })
 }
 
 // ===== 통계 =====
