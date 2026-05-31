@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import DiaryBook from '@/components/ui/DiaryBook'
 import { useUser } from '@/features/auth/useUser'
@@ -10,6 +10,7 @@ import { exportAllToPDF, exportSelectedToVideo, type ExportProgress } from '@/fe
 import type { Diary } from '@/features/diary/types'
 
 type ExportState = 'idle' | 'running' | 'done' | 'error'
+type SortOrder = 'asc' | 'desc'  // asc = 오래된순, desc = 최신순
 
 export default function ArchivePage() {
   const router = useRouter()
@@ -21,6 +22,7 @@ export default function ArchivePage() {
   // 선택 모드
   const [selectMode, setSelectMode] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [sortOrder, setSortOrder] = useState<SortOrder>('asc') // 기본: 오래된순
 
   // 내보내기 상태
   const [pdfState, setPdfState] = useState<ExportState>('idle')
@@ -36,13 +38,31 @@ export default function ArchivePage() {
     if (!user) return
     const load = async () => {
       setLoading(true)
-      const diaries = await getSortedDiaries(user.id)
+      const diaries = await getSortedDiaries(user.id) // DB에서 최신순으로 옴
       setAllDiaries(diaries)
       setBooks(groupDiariesByBook(diaries))
       setLoading(false)
     }
     load()
   }, [user?.id])
+
+  // 선택 모드에서 보여줄 정렬된 목록
+  const sortedDiaries = useMemo(() => {
+    const arr = [...allDiaries]
+    return sortOrder === 'asc' ? arr.reverse() : arr // asc = 오래된순(역순)
+  }, [allDiaries, sortOrder])
+
+  const enterSelectMode = () => {
+    setSelectMode(true)
+    setSelected(new Set())
+    setSortOrder('asc')
+  }
+
+  const exitSelectMode = () => {
+    setSelectMode(false)
+    setSelected(new Set())
+    setProgress(null)
+  }
 
   const toggleSelect = (id: string) => {
     setSelected((prev) => {
@@ -54,8 +74,8 @@ export default function ArchivePage() {
   }
 
   const toggleAll = () => {
-    if (selected.size === allDiaries.length) setSelected(new Set())
-    else setSelected(new Set(allDiaries.map((d) => d.id)))
+    if (selected.size === sortedDiaries.length) setSelected(new Set())
+    else setSelected(new Set(sortedDiaries.map((d) => d.id)))
   }
 
   const handleExportPDF = async () => {
@@ -74,7 +94,8 @@ export default function ArchivePage() {
 
   const handleExportVideo = async () => {
     if (videoState === 'running' || selected.size === 0) return
-    const ordered = allDiaries.filter((d) => selected.has(d.id))
+    // 선택된 일기를 sortedDiaries 순서 기준으로 정렬
+    const ordered = sortedDiaries.filter((d) => selected.has(d.id))
     setVideoState('running')
     setProgress(null)
     try {
@@ -113,10 +134,7 @@ export default function ArchivePage() {
       <header className="sticky top-0 z-10 backdrop-blur-sm bg-paper-100/80 border-b border-paper-200">
         <div className="max-w-lg mx-auto px-5 py-4 flex items-center gap-3">
           <button
-            onClick={() => {
-              if (selectMode) { setSelectMode(false); setSelected(new Set()) }
-              else router.push('/')
-            }}
+            onClick={() => selectMode ? exitSelectMode() : router.push('/')}
             className="text-ink-800/60 hover:text-ink-800 text-xl transition"
           >
             {selectMode ? '✕' : '←'}
@@ -124,15 +142,13 @@ export default function ArchivePage() {
           <h1 className="font-handwriting text-2xl text-ink-800 font-bold flex-1">
             {selectMode ? `${selected.size}편 선택됨` : '일기장 보관함'}
           </h1>
-          {!loading && allDiaries.length > 0 && (
+          {/* 선택 모드에서 정렬 토글 */}
+          {selectMode && (
             <button
-              onClick={() => {
-                setSelectMode((v) => !v)
-                setSelected(new Set())
-              }}
-              className="text-sm text-ink-700/60 hover:text-ink-800 transition px-2"
+              onClick={() => setSortOrder((v) => v === 'asc' ? 'desc' : 'asc')}
+              className="text-xs text-ink-700/50 hover:text-ink-800 transition px-2 py-1 rounded-lg hover:bg-paper-200"
             >
-              {selectMode ? '취소' : '선택'}
+              {sortOrder === 'asc' ? '오래된순 ↑' : '최신순 ↓'}
             </button>
           )}
         </div>
@@ -149,13 +165,13 @@ export default function ArchivePage() {
           /* ===== 선택 모드 — 일기 리스트 ===== */
           <>
             <div className="flex items-center justify-between mb-4">
-              <p className="text-xs text-ink-700/40">영상에 담을 일기를 골라요 (선택 순서대로 이어져요)</p>
-              <button onClick={toggleAll} className="text-xs text-ink-700/60 hover:text-ink-800 transition">
-                {selected.size === allDiaries.length ? '전체 해제' : '전체 선택'}
+              <p className="text-xs text-ink-700/40">영상에 담을 일기를 골라요 (오래된 순서부터 시작돼요)</p>
+              <button onClick={toggleAll} className="text-xs text-ink-700/60 hover:text-ink-800 transition shrink-0 ml-3">
+                {selected.size === sortedDiaries.length ? '전체 해제' : '전체 선택'}
               </button>
             </div>
             <div className="flex flex-col gap-3">
-              {allDiaries.map((diary) => {
+              {sortedDiaries.map((diary) => {
                 const isSelected = selected.has(diary.id)
                 const lastLayer = diary.layers[diary.layers.length - 1]
                 const thumbSrc = lastLayer?.thumbDataUrl ?? lastLayer?.imageDataUrl
@@ -235,7 +251,8 @@ export default function ArchivePage() {
               모든 일기 {allDiaries.length}편을 한 번에 저장해요
             </p>
 
-            {isExporting && progress && (
+            {/* PDF 진행 상태 */}
+            {pdfState === 'running' && progress && (
               <div className="mb-4 px-4 py-3 bg-paper-100 rounded-xl">
                 <p className="text-xs text-ink-700/60 mb-1">
                   {progress.diaryTitle} — 레이어 {progress.layerIndex}/{progress.layerTotal}
@@ -246,13 +263,11 @@ export default function ArchivePage() {
                     style={{ width: `${(progress.current / progress.total) * 100}%` }}
                   />
                 </div>
-                <p className="text-[10px] text-ink-700/30 mt-1 text-right">
-                  {progress.current} / {progress.total} 레이어
-                </p>
               </div>
             )}
 
             <div className="flex flex-col gap-3">
+              {/* PDF 버튼 */}
               <button
                 onClick={handleExportPDF}
                 disabled={isExporting || allDiaries.length === 0}
@@ -266,6 +281,20 @@ export default function ArchivePage() {
                 <span className="text-sm text-ink-700/40">
                   {pdfState === 'running' ? '...' : pdfState === 'done' ? '✓' : pdfState === 'error' ? '✗' : '→'}
                 </span>
+              </button>
+
+              {/* 영상 버튼 — 클릭하면 선택 모드 진입 */}
+              <button
+                onClick={enterSelectMode}
+                disabled={isExporting || allDiaries.length === 0}
+                className="flex items-center gap-3 px-4 py-3.5 rounded-xl bg-paper-100 hover:bg-paper-200 transition disabled:opacity-40 disabled:cursor-not-allowed text-left"
+              >
+                <span className="text-2xl">🎬</span>
+                <div className="flex-1">
+                  <p className="text-sm font-bold text-ink-800">영상으로 저장</p>
+                  <p className="text-xs text-ink-700/50">담을 일기를 골라 레이어 타임랩스 영상으로 저장</p>
+                </div>
+                <span className="text-sm text-ink-700/40">→</span>
               </button>
             </div>
 
@@ -295,7 +324,7 @@ export default function ArchivePage() {
 
       {/* ===== 선택 모드 하단 고정 바 ===== */}
       {selectMode && (
-        <div className="fixed bottom-0 left-0 right-0 z-20 bg-paper-50/95 backdrop-blur-sm border-t border-paper-200 px-5 py-4 pb-safe">
+        <div className="fixed bottom-0 left-0 right-0 z-20 bg-paper-50/95 backdrop-blur-sm border-t border-paper-200 px-5 py-4">
           <div className="max-w-lg mx-auto">
             {/* 진행 상태 */}
             {videoState === 'running' && progress && (
@@ -315,12 +344,13 @@ export default function ArchivePage() {
             <button
               onClick={handleExportVideo}
               disabled={selected.size === 0 || videoState === 'running'}
-              className="w-full py-4 rounded-2xl font-handwriting text-lg font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              className="w-full py-4 rounded-2xl font-handwriting text-lg font-bold transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100"
               style={{
-                backgroundColor: selected.size > 0 ? '#C47C10' : undefined,
-                color: selected.size > 0 ? '#fefcf8' : undefined,
-                boxShadow: selected.size > 0 ? '0 4px 20px rgba(196,124,16,0.35)' : undefined,
-                background: selected.size === 0 ? '#e5ddd3' : undefined,
+                backgroundColor: '#C47C10',
+                color: '#fefcf8',
+                boxShadow: selected.size > 0
+                  ? '0 4px 20px rgba(196,124,16,0.45), 0 2px 6px rgba(0,0,0,0.15)'
+                  : 'none',
               }}
             >
               {videoState === 'running'
