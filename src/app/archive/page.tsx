@@ -6,7 +6,7 @@ import DiaryBook from '@/components/ui/DiaryBook'
 import { useUser } from '@/features/auth/useUser'
 import { getSortedDiaries, deleteAllData } from '@/lib/supabase/diaryService'
 import { groupDiariesByBook, type DiaryBook as DiaryBookType } from '@/features/diary/seasonUtils'
-import { exportAllToPDF, exportSelectedToVideo, type ExportProgress } from '@/features/diary/exportUtils'
+import { exportSelectedToPDF, exportSelectedToVideo, type ExportProgress } from '@/features/diary/exportUtils'
 import type { Diary } from '@/features/diary/types'
 
 type ExportState = 'idle' | 'running' | 'done' | 'error'
@@ -19,14 +19,13 @@ export default function ArchivePage() {
   const [allDiaries, setAllDiaries] = useState<Diary[]>([])
   const [loading, setLoading] = useState(true)
 
-  // 선택 모드
-  const [selectMode, setSelectMode] = useState(false)
+  // 선택 모드 — 'pdf' | 'video' | null
+  const [selectMode, setSelectMode] = useState<'pdf' | 'video' | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [sortOrder, setSortOrder] = useState<SortOrder>('asc') // 기본: 오래된순
 
   // 내보내기 상태
-  const [pdfState, setPdfState] = useState<ExportState>('idle')
-  const [videoState, setVideoState] = useState<ExportState>('idle')
+  const [exportState, setExportState] = useState<ExportState>('idle')
   const [progress, setProgress] = useState<ExportProgress | null>(null)
 
   // 삭제 확인 모달
@@ -52,16 +51,19 @@ export default function ArchivePage() {
     return sortOrder === 'asc' ? arr.reverse() : arr // asc = 오래된순(역순)
   }, [allDiaries, sortOrder])
 
-  const enterSelectMode = () => {
-    setSelectMode(true)
+  const enterSelectMode = (type: 'pdf' | 'video') => {
+    setSelectMode(type)
     setSelected(new Set())
     setSortOrder('asc')
+    setExportState('idle')
+    setProgress(null)
   }
 
   const exitSelectMode = () => {
-    setSelectMode(false)
+    setSelectMode(null)
     setSelected(new Set())
     setProgress(null)
+    setExportState('idle')
   }
 
   const toggleSelect = (id: string) => {
@@ -78,34 +80,23 @@ export default function ArchivePage() {
     else setSelected(new Set(sortedDiaries.map((d) => d.id)))
   }
 
-  const handleExportPDF = async () => {
-    if (pdfState === 'running' || allDiaries.length === 0) return
-    setPdfState('running')
-    setProgress(null)
-    try {
-      await exportAllToPDF(allDiaries, setProgress)
-      setPdfState('done')
-    } catch (err) {
-      console.error('PDF 내보내기 실패:', err)
-      setPdfState('error')
-    }
-    setTimeout(() => setPdfState('idle'), 3000)
-  }
-
-  const handleExportVideo = async () => {
-    if (videoState === 'running' || selected.size === 0) return
-    // 선택된 일기를 sortedDiaries 순서 기준으로 정렬
+  const handleExport = async () => {
+    if (exportState === 'running' || selected.size === 0) return
     const ordered = sortedDiaries.filter((d) => selected.has(d.id))
-    setVideoState('running')
+    setExportState('running')
     setProgress(null)
     try {
-      await exportSelectedToVideo(ordered, setProgress)
-      setVideoState('done')
+      if (selectMode === 'pdf') {
+        await exportSelectedToPDF(ordered, setProgress)
+      } else {
+        await exportSelectedToVideo(ordered, setProgress)
+      }
+      setExportState('done')
     } catch (err) {
-      console.error('영상 내보내기 실패:', err)
-      setVideoState('error')
+      console.error('내보내기 실패:', err)
+      setExportState('error')
     }
-    setTimeout(() => { setVideoState('idle'); setProgress(null) }, 3000)
+    setTimeout(() => { setExportState('idle'); setProgress(null) }, 3000)
   }
 
   const handleDeleteAll = async () => {
@@ -126,7 +117,7 @@ export default function ArchivePage() {
     }
   }
 
-  const isExporting = pdfState === 'running' || videoState === 'running'
+  const isExporting = exportState === 'running'
 
   return (
     <div className="min-h-screen">
@@ -140,7 +131,9 @@ export default function ArchivePage() {
             {selectMode ? '✕' : '←'}
           </button>
           <h1 className="font-handwriting text-2xl text-ink-800 font-bold flex-1">
-            {selectMode ? `${selected.size}편 선택됨` : '일기장 보관함'}
+            {selectMode === 'pdf' ? `PDF — ${selected.size}편 선택됨`
+              : selectMode === 'video' ? `영상 — ${selected.size}편 선택됨`
+              : '일기장 보관함'}
           </h1>
           {/* 선택 모드에서 정렬 토글 */}
           {selectMode && (
@@ -161,11 +154,13 @@ export default function ArchivePage() {
             <p className="font-handwriting text-xl text-ink-700/40">불러오는 중...</p>
           </div>
 
-        ) : selectMode ? (
+        ) : selectMode !== null ? (
           /* ===== 선택 모드 — 일기 리스트 ===== */
           <>
             <div className="flex items-center justify-between mb-4">
-              <p className="text-xs text-ink-700/40">영상에 담을 일기를 골라요 (오래된 순서부터 시작돼요)</p>
+              <p className="text-xs text-ink-700/40">
+                {selectMode === 'pdf' ? 'PDF에 담을 일기를 골라요 (오래된 순서부터 시작돼요)' : '영상에 담을 일기를 골라요 (오래된 순서부터 시작돼요)'}
+              </p>
               <button onClick={toggleAll} className="text-xs text-ink-700/60 hover:text-ink-800 transition shrink-0 ml-3">
                 {selected.size === sortedDiaries.length ? '전체 해제' : '전체 선택'}
               </button>
@@ -244,49 +239,33 @@ export default function ArchivePage() {
         )}
 
         {/* ===== 내보내기 + 초기화 섹션 (기본 모드에서만) ===== */}
-        {!loading && !selectMode && user && (
+        {!loading && selectMode === null && user && (
           <div className="mt-10 border-t border-paper-200 pt-8">
             <p className="font-handwriting text-lg text-ink-800 font-bold mb-1">전체 내보내기</p>
             <p className="text-xs text-ink-700/40 mb-5">
               모든 일기 {allDiaries.length}편을 한 번에 저장해요
             </p>
 
-            {/* PDF 진행 상태 */}
-            {pdfState === 'running' && progress && (
-              <div className="mb-4 px-4 py-3 bg-paper-100 rounded-xl">
-                <p className="text-xs text-ink-700/60 mb-1">
-                  {progress.diaryTitle} — 레이어 {progress.layerIndex}/{progress.layerTotal}
-                </p>
-                <div className="w-full bg-paper-200 rounded-full h-1.5">
-                  <div
-                    className="bg-ink-700 h-1.5 rounded-full transition-all"
-                    style={{ width: `${(progress.current / progress.total) * 100}%` }}
-                  />
-                </div>
-              </div>
-            )}
 
             <div className="flex flex-col gap-3">
-              {/* PDF 버튼 */}
+              {/* PDF 버튼 — 클릭하면 PDF 선택 모드 진입 */}
               <button
-                onClick={handleExportPDF}
-                disabled={isExporting || allDiaries.length === 0}
+                onClick={() => enterSelectMode('pdf')}
+                disabled={allDiaries.length === 0}
                 className="flex items-center gap-3 px-4 py-3.5 rounded-xl bg-paper-100 hover:bg-paper-200 transition disabled:opacity-40 disabled:cursor-not-allowed text-left"
               >
                 <span className="text-2xl">📄</span>
                 <div className="flex-1">
                   <p className="text-sm font-bold text-ink-800">PDF로 저장</p>
-                  <p className="text-xs text-ink-700/50">모든 일기를 PDF 한 파일로 다운로드</p>
+                  <p className="text-xs text-ink-700/50">담을 일기를 골라 PDF 한 파일로 다운로드</p>
                 </div>
-                <span className="text-sm text-ink-700/40">
-                  {pdfState === 'running' ? '...' : pdfState === 'done' ? '✓' : pdfState === 'error' ? '✗' : '→'}
-                </span>
+                <span className="text-sm text-ink-700/40">→</span>
               </button>
 
-              {/* 영상 버튼 — 클릭하면 선택 모드 진입 */}
+              {/* 영상 버튼 — 클릭하면 영상 선택 모드 진입 */}
               <button
-                onClick={enterSelectMode}
-                disabled={isExporting || allDiaries.length === 0}
+                onClick={() => enterSelectMode('video')}
+                disabled={allDiaries.length === 0}
                 className="flex items-center gap-3 px-4 py-3.5 rounded-xl bg-paper-100 hover:bg-paper-200 transition disabled:opacity-40 disabled:cursor-not-allowed text-left"
               >
                 <span className="text-2xl">🎬</span>
@@ -323,11 +302,11 @@ export default function ArchivePage() {
       </main>
 
       {/* ===== 선택 모드 하단 고정 바 ===== */}
-      {selectMode && (
+      {selectMode !== null && (
         <div className="fixed bottom-0 left-0 right-0 z-20 bg-paper-50/95 backdrop-blur-sm border-t border-paper-200 px-5 py-4">
           <div className="max-w-lg mx-auto">
             {/* 진행 상태 */}
-            {videoState === 'running' && progress && (
+            {exportState === 'running' && progress && (
               <div className="mb-3 px-3 py-2 bg-paper-100 rounded-xl">
                 <p className="text-xs text-ink-700/60 mb-1 truncate">
                   {progress.diaryTitle} — 레이어 {progress.layerIndex}/{progress.layerTotal}
@@ -342,8 +321,8 @@ export default function ArchivePage() {
             )}
 
             <button
-              onClick={handleExportVideo}
-              disabled={selected.size === 0 || videoState === 'running'}
+              onClick={handleExport}
+              disabled={selected.size === 0 || exportState === 'running'}
               className="w-full py-4 rounded-2xl font-handwriting text-lg font-bold transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100"
               style={{
                 backgroundColor: '#C47C10',
@@ -353,14 +332,16 @@ export default function ArchivePage() {
                   : 'none',
               }}
             >
-              {videoState === 'running'
-                ? '영상 만드는 중...'
-                : videoState === 'done'
+              {exportState === 'running'
+                ? (selectMode === 'pdf' ? 'PDF 만드는 중...' : '영상 만드는 중...')
+                : exportState === 'done'
                 ? '✓ 다운로드 완료!'
-                : videoState === 'error'
+                : exportState === 'error'
                 ? '오류 발생 — 다시 시도'
                 : selected.size > 0
-                ? `🎬 ${selected.size}편으로 영상 만들기`
+                ? (selectMode === 'pdf'
+                    ? `📄 ${selected.size}편으로 PDF 만들기`
+                    : `🎬 ${selected.size}편으로 영상 만들기`)
                 : '일기를 선택해주세요'}
             </button>
           </div>

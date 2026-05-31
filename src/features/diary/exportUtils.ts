@@ -33,7 +33,7 @@ async function registerKoreanFont(pdf: InstanceType<typeof import('jspdf').defau
   pdf.addFont('NanumGothic-Regular.ttf', 'NanumGothic', 'normal')
 }
 
-export async function exportAllToPDF(
+export async function exportSelectedToPDF(
   diaries: Diary[],
   onProgress?: (p: ExportProgress) => void
 ): Promise<void> {
