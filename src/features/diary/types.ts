@@ -2,6 +2,7 @@
 
 export type DiaryLayer = {
   imageDataUrl: string        // 캔버스를 이미지로 플래튼한 결과 (PNG data URL)
+  thumbDataUrl?: string       // 홈 카드용 저해상도 썸네일 URL (없으면 imageDataUrl 사용)
   editorId: string            // 이 레이어를 작성한 사람의 userId
   editedAt: string            // 작성 시각
 }

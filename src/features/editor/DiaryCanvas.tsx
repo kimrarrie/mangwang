@@ -438,12 +438,12 @@ const DiaryCanvas = forwardRef<CanvasHandle, DiaryCanvasProps>(
       },
 
       toDataURL: async () => {
-        // 화질 개선: 2배 해상도로 내보내서 레티나/고해상도 화면에서도 선명하게 보이도록
-        // 최종 포맷은 JPEG quality 0.92 — PNG 대비 용량 60~70% 감소로 업로드 속도 향상
+        // 1.5배 해상도로 내보내기 — 2배 대비 픽셀 수 44% 감소, 체감 화질 차이 거의 없음
+        // JPEG quality 0.72 — 0.92 대비 파일 크기 40~50% 추가 감소
         // (배경이 단색이거나 이전 레이어가 깔리므로 투명도가 없어 JPEG 적용 가능)
-        const EXPORT_SCALE = 2
+        const EXPORT_SCALE = 1.5
         const EXPORT_FORMAT = 'image/jpeg'
-        const EXPORT_QUALITY = 0.92
+        const EXPORT_QUALITY = 0.72
 
         if (!fabricRef.current || !hasBgLayers) {
           // 새 일기 (배경 단색) — fabric 자체 JPEG 내보내기

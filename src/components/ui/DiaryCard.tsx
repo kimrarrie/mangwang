@@ -33,10 +33,9 @@ export default function DiaryCard({ diary, onClick, onDelete }: DiaryCardProps) 
   // 알림 뱃지 텍스트: 1~10은 숫자, 그 이상은 +10
   const badgeText = diary.unreadEdits > 10 ? '+10' : String(diary.unreadEdits)
 
-  // 마지막 레이어 이미지 (미리보기용)
-  const lastLayerImage = diary.layers.length > 0
-    ? diary.layers[diary.layers.length - 1].imageDataUrl
-    : null
+  // 마지막 레이어 썸네일 (홈 카드용 — 썸네일 없으면 원본 사용)
+  const lastLayer = diary.layers.length > 0 ? diary.layers[diary.layers.length - 1] : null
+  const lastLayerImage = lastLayer ? (lastLayer.thumbDataUrl ?? lastLayer.imageDataUrl) : null
 
   // 마지막 편집자 이름 + 상대 시간
   const lastEditor = getUserById(diary.lastEditedBy)
@@ -101,15 +100,13 @@ export default function DiaryCard({ diary, onClick, onDelete }: DiaryCardProps) 
         {/* 일기 미리보기 이미지 — 가운데 부분을 잘라서 보여줌 */}
         {lastLayerImage ? (
           <div className="w-full h-40 bg-paper-50 relative overflow-hidden rounded-t-lg">
-            {/* 모든 레이어를 겹쳐서 표시 (가운데 정렬로 중앙부가 보임) */}
-            {diary.layers.map((layer, index) => (
-              <img
-                key={index}
-                src={layer.imageDataUrl}
-                alt=""
-                className="absolute inset-0 w-full h-full object-cover object-center"
-              />
-            ))}
+            {/* 마지막 레이어 썸네일만 표시 (Egress 절감) */}
+            <img
+              src={lastLayerImage}
+              alt=""
+              className="absolute inset-0 w-full h-full object-cover object-center"
+              loading="lazy"
+            />
           </div>
         ) : (
           <div className="w-full h-32 bg-paper-50 flex items-center justify-center rounded-t-lg">

@@ -26,6 +26,24 @@ function syncProfilesLocally(profiles: User[]) {
   })
 }
 
+// ===== Signed URL 인메모리 캐시 =====
+// 같은 세션 내에서 동일 이미지를 반복 다운로드하지 않도록 경로 → URL 캐싱
+// TTL 50분 (Supabase signed URL 유효기간 1년이므로 충분)
+
+const urlCache = new Map<string, { url: string; expiresAt: number }>()
+const CACHE_TTL_MS = 50 * 60 * 1000 // 50분
+
+function getCachedUrl(path: string): string | null {
+  const entry = urlCache.get(path)
+  if (!entry) return null
+  if (Date.now() > entry.expiresAt) { urlCache.delete(path); return null }
+  return entry.url
+}
+
+function setCachedUrl(path: string, url: string) {
+  urlCache.set(path, { url, expiresAt: Date.now() + CACHE_TTL_MS })
+}
+
 // ===== 이미지 처리 =====
 
 // data URL(base64)을 Blob으로 변환
@@ -41,33 +59,75 @@ function dataUrlToBlob(dataUrl: string): Blob {
   return new Blob([bytes], { type: mime })
 }
 
+// 썸네일 생성 — 300px 너비 JPEG (홈 카드용 저해상도)
+async function generateThumbnail(dataUrl: string): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.onload = () => {
+      const THUMB_W = 300
+      const scale = THUMB_W / img.width
+      const canvas = document.createElement('canvas')
+      canvas.width = THUMB_W
+      canvas.height = Math.round(img.height * scale)
+      const ctx = canvas.getContext('2d')
+      if (!ctx) { resolve(dataUrl); return }
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+      resolve(canvas.toDataURL('image/jpeg', 0.6))
+    }
+    img.onerror = () => resolve(dataUrl) // 실패 시 원본 사용
+    img.src = dataUrl
+  })
+}
+
 // Canvas 이미지를 Supabase Storage에 업로드
 // 반환값: 저장 경로 (예: "user-uuid/1714000000000.png")
-export async function uploadCanvasImage(dataUrl: string, userId: string): Promise<string> {
+// isThumb=true 이면 파일명에 _thumb 접미사 붙여 저장 (e.g. 1714000000000_thumb.jpg)
+export async function uploadCanvasImage(dataUrl: string, userId: string, isThumb = false): Promise<string> {
   const supabase = createClient()
   const blob = dataUrlToBlob(dataUrl)
-  const path = `${userId}/${Date.now()}.png`
+  const mimeMatch = dataUrl.match(/^data:(image\/\w+);/)
+  const mime = mimeMatch ? mimeMatch[1] : 'image/png'
+  const ext = mime === 'image/jpeg' ? 'jpg' : 'png'
+  const suffix = isThumb ? '_thumb' : ''
+  const path = `${userId}/${Date.now()}${suffix}.${ext}`
 
   const { error } = await supabase.storage
     .from('diary-images')
-    .upload(path, blob, { contentType: 'image/png', upsert: false })
+    .upload(path, blob, { contentType: mime, upsert: false })
 
   if (error) throw new Error(`이미지 업로드 실패: ${error.message}`)
   return path
 }
 
-// 저장 경로 배열 → signed URL 맵 (1년 유효)
+// 저장 경로 배열 → signed URL 맵 (1년 유효, 캐시 우선)
 async function pathsToSignedUrls(paths: string[]): Promise<Record<string, string>> {
   if (paths.length === 0) return {}
-  const supabase = createClient()
-  const { data } = await supabase.storage
-    .from('diary-images')
-    .createSignedUrls(paths, 60 * 60 * 24 * 365)
 
   const map: Record<string, string> = {}
-  for (const item of data || []) {
-    if (item.signedUrl && item.path) map[item.path] = item.signedUrl
+  const uncached: string[] = []
+
+  // 캐시에 있는 건 바로 사용
+  for (const p of paths) {
+    const cached = getCachedUrl(p)
+    if (cached) map[p] = cached
+    else uncached.push(p)
   }
+
+  // 캐시 미스 항목만 Supabase에 요청
+  if (uncached.length > 0) {
+    const supabase = createClient()
+    const { data } = await supabase.storage
+      .from('diary-images')
+      .createSignedUrls(uncached, 60 * 60 * 24 * 365)
+
+    for (const item of data || []) {
+      if (item.signedUrl && item.path) {
+        map[item.path] = item.signedUrl
+        setCachedUrl(item.path, item.signedUrl)
+      }
+    }
+  }
+
   return map
 }
 
@@ -181,7 +241,11 @@ export async function getSortedDiaries(userId: string): Promise<Diary[]> {
     readMap[row.diary_id] = row.read_layer_count
   }
 
-  const allPaths = (layerRows || []).map((l) => l.image_url)
+  // 원본 + 썸네일 경로 모두 signed URL 요청 (썸네일이 없으면 조용히 스킵)
+  const allPaths = (layerRows || []).flatMap((l) => {
+    const thumbPath = l.image_url.replace(/(\.\w+)$/, '_thumb.jpg')
+    return [l.image_url, thumbPath]
+  })
   const signedUrlMap = await pathsToSignedUrls(allPaths)
 
   // 일기별 레이어 그룹화
@@ -197,11 +261,15 @@ export async function getSortedDiaries(userId: string): Promise<Diary[]> {
     const totalLayers = layers.length
     const unreadEdits = Math.max(0, totalLayers - (readMap[d.id] || 0))
 
-    const diaryLayers: DiaryLayer[] = layers.map((l) => ({
-      imageDataUrl: signedUrlMap[l.image_url] || l.image_url,
-      editorId: l.editor_id,
-      editedAt: l.edited_at,
-    }))
+    const diaryLayers: DiaryLayer[] = layers.map((l) => {
+      const thumbPath = l.image_url.replace(/(\.\w+)$/, '_thumb.jpg')
+      return {
+        imageDataUrl: signedUrlMap[l.image_url] || l.image_url,
+        thumbDataUrl: signedUrlMap[thumbPath] || undefined,
+        editorId: l.editor_id,
+        editedAt: l.edited_at,
+      }
+    })
 
     const editors: string[] = []
     for (const l of layers) {
@@ -252,14 +320,21 @@ export async function getDiaryById(diaryId: string, userId: string): Promise<Dia
 
   type LayerRow = { image_url: string; editor_id: string; edited_at: string }
   const layers = (layerRows || []) as LayerRow[]
-  const paths = layers.map((l) => l.image_url)
+  const paths = layers.flatMap((l) => {
+    const thumbPath = l.image_url.replace(/(\.\w+)$/, '_thumb.jpg')
+    return [l.image_url, thumbPath]
+  })
   const signedUrlMap = await pathsToSignedUrls(paths)
 
-  const diaryLayers: DiaryLayer[] = layers.map((l) => ({
-    imageDataUrl: signedUrlMap[l.image_url] || l.image_url,
-    editorId: l.editor_id,
-    editedAt: l.edited_at,
-  }))
+  const diaryLayers: DiaryLayer[] = layers.map((l) => {
+    const thumbPath = l.image_url.replace(/(\.\w+)$/, '_thumb.jpg')
+    return {
+      imageDataUrl: signedUrlMap[l.image_url] || l.image_url,
+      thumbDataUrl: signedUrlMap[thumbPath] || undefined,
+      editorId: l.editor_id,
+      editedAt: l.edited_at,
+    }
+  })
 
   const editors: string[] = []
   for (const l of layers) {
@@ -288,7 +363,12 @@ export async function createDiary(
 ): Promise<string | null> {
   const supabase = createClient()
 
-  const imagePath = await uploadCanvasImage(imageDataUrl, userId)
+  // 원본 + 썸네일 병렬 업로드
+  const thumbDataUrl = await generateThumbnail(imageDataUrl)
+  const [imagePath] = await Promise.all([
+    uploadCanvasImage(imageDataUrl, userId),
+    uploadCanvasImage(thumbDataUrl, userId, true),
+  ])
 
   const { data: diary, error: diaryError } = await supabase
     .from('diaries')
@@ -314,7 +394,12 @@ export async function appendLayer(
 ): Promise<void> {
   const supabase = createClient()
 
-  const imagePath = await uploadCanvasImage(imageDataUrl, userId)
+  // 원본 + 썸네일 병렬 업로드
+  const thumbDataUrl = await generateThumbnail(imageDataUrl)
+  const [imagePath] = await Promise.all([
+    uploadCanvasImage(imageDataUrl, userId),
+    uploadCanvasImage(thumbDataUrl, userId, true),
+  ])
 
   const { error: layerError } = await supabase.from('diary_layers').insert({
     diary_id: diaryId,
