@@ -228,7 +228,7 @@ export default function ArchivePage() {
         )}
 
         {/* ===== 내보내기 + 초기화 섹션 (기본 모드에서만) ===== */}
-        {!loading && !selectMode && (
+        {!loading && !selectMode && user && (
           <div className="mt-10 border-t border-paper-200 pt-8">
             <p className="font-handwriting text-lg text-ink-800 font-bold mb-1">전체 내보내기</p>
             <p className="text-xs text-ink-700/40 mb-5">
@@ -269,24 +269,26 @@ export default function ArchivePage() {
               </button>
             </div>
 
-            {/* 데이터 삭제 */}
-            <div className="mt-8 border-t border-paper-200 pt-6">
-              <p className="font-handwriting text-base text-red-400 font-bold mb-1">위험 구역</p>
-              <p className="text-xs text-ink-700/40 mb-4">
-                내보내기를 먼저 완료한 뒤 진행하세요. 삭제된 데이터는 복구할 수 없어요.
-              </p>
-              <button
-                onClick={() => setShowDeleteModal(true)}
-                className="flex items-center gap-3 px-4 py-3.5 rounded-xl border border-red-200 hover:bg-red-50 transition text-left w-full"
-              >
-                <span className="text-2xl">🗑️</span>
-                <div className="flex-1">
-                  <p className="text-sm font-bold text-red-500">전체 데이터 삭제</p>
-                  <p className="text-xs text-ink-700/40">모든 일기와 이미지를 완전히 지워요</p>
-                </div>
-                <span className="text-sm text-red-300">→</span>
-              </button>
-            </div>
+            {/* 데이터 삭제 — 관리자 계정에서만 표시 */}
+            {user.email === 'kim.rarrie@gmail.com' && (
+              <div className="mt-8 border-t border-paper-200 pt-6">
+                <p className="font-handwriting text-base text-red-400 font-bold mb-1">위험 구역</p>
+                <p className="text-xs text-ink-700/40 mb-4">
+                  내보내기를 먼저 완료한 뒤 진행하세요. 삭제된 데이터는 복구할 수 없어요.
+                </p>
+                <button
+                  onClick={() => setShowDeleteModal(true)}
+                  className="flex items-center gap-3 px-4 py-3.5 rounded-xl border border-red-200 hover:bg-red-50 transition text-left w-full"
+                >
+                  <span className="text-2xl">🗑️</span>
+                  <div className="flex-1">
+                    <p className="text-sm font-bold text-red-500">전체 데이터 삭제</p>
+                    <p className="text-xs text-ink-700/40">모든 일기와 이미지를 완전히 지워요</p>
+                  </div>
+                  <span className="text-sm text-red-300">→</span>
+                </button>
+              </div>
+            )}
           </div>
         )}
       </main>
