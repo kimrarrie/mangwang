@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import DiaryCard from '@/components/ui/DiaryCard'
 import { getInitial, getAvatarStyle } from '@/features/diary/mockData'
 import { useUser } from '@/features/auth/useUser'
-import { getSortedDiaries, deleteDiary } from '@/lib/supabase/diaryService'
+import { getSortedDiaries, deleteDiary, togglePin } from '@/lib/supabase/diaryService'
 import { useTheme } from '@/components/ThemeProvider'
 import type { Diary } from '@/features/diary/types'
 
@@ -49,6 +49,18 @@ export default function HomePage() {
   const dateStr = `${today.getFullYear()}년 ${today.getMonth() + 1}월 ${today.getDate()}일`
   const dayNames = ['일', '월', '화', '수', '목', '금', '토']
   const dayStr = dayNames[today.getDay()]
+
+  // 핀 고정/해제
+  const handleTogglePin = async (diary: Diary) => {
+    const next = !diary.isPinned
+    setDiaries((prev) => prev.map((d) => d.id === diary.id ? { ...d, isPinned: next } : d))
+    try {
+      await togglePin(diary.id, next)
+    } catch {
+      // 실패 시 롤백
+      setDiaries((prev) => prev.map((d) => d.id === diary.id ? { ...d, isPinned: diary.isPinned } : d))
+    }
+  }
 
   // 실제 삭제 실행
   const handleConfirmDelete = async () => {
@@ -113,6 +125,46 @@ export default function HomePage() {
           </button>
         </div>
 
+        {/* ===== 핀 스토리 스트립 ===== */}
+        {!loading && diaries.some((d) => d.isPinned) && (
+          <div className="mb-5 -mx-5 px-5">
+            <div className="flex gap-4 overflow-x-auto no-scrollbar pb-1">
+              {diaries.filter((d) => d.isPinned).map((diary) => {
+                const lastLayer = diary.layers[diary.layers.length - 1]
+                const thumbSrc = lastLayer?.thumbDataUrl ?? lastLayer?.imageDataUrl
+                const avatar = getAvatarStyle(diary.createdBy)
+                return (
+                  <button
+                    key={diary.id}
+                    onClick={() => router.push(`/editor/${diary.id}`)}
+                    className="flex flex-col items-center gap-1.5 shrink-0"
+                  >
+                    {/* 원형 썸네일 */}
+                    <div
+                      className={`w-14 h-14 rounded-full overflow-hidden ring-2 ring-offset-2 ${
+                        diary.unreadEdits > 0 ? '' : 'ring-paper-300'
+                      }`}
+                      style={diary.unreadEdits > 0 ? avatar.ringStyle : undefined}
+                    >
+                      {thumbSrc ? (
+                        <img src={thumbSrc} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className={`w-full h-full flex items-center justify-center text-lg font-bold ${avatar.className}`} style={avatar.style}>
+                          {getInitial(diary.createdBy)}
+                        </div>
+                      )}
+                    </div>
+                    {/* 제목 */}
+                    <p className="text-[10px] text-ink-700/60 max-w-[56px] truncate text-center leading-tight">
+                      {diary.title}
+                    </p>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
         {/* 일기 목록 */}
         {loading ? (
           <div className="text-center py-20">
@@ -125,7 +177,7 @@ export default function HomePage() {
                 key={diary.id}
                 diary={diary}
                 onClick={() => router.push(`/editor/${diary.id}`)}
-                // 본인이 만든 일기일 때만 삭제 콜백 전달
+                onTogglePin={() => handleTogglePin(diary)}
                 onDelete={
                   user && diary.createdBy === user.id
                     ? () => setDiaryToDelete(diary)

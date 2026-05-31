@@ -17,6 +17,7 @@ export type Diary = {
   lastEditedBy: string        // 마지막 편집자 userId
   editors: string[]           // 편집한 사람들의 userId 목록
   unreadEdits: number         // 안 읽은 편집 건수
+  isPinned: boolean           // 상단 고정 여부 (모든 유저 공유)
   createdAt: string
   lastEditedAt: string
 }

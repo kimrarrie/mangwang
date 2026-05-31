@@ -284,6 +284,7 @@ export async function getSortedDiaries(userId: string): Promise<Diary[]> {
       lastEditedBy: d.last_edited_by,
       editors,
       unreadEdits,
+      isPinned: d.is_pinned ?? false,
       createdAt: d.created_at,
       lastEditedAt: d.last_edited_at,
     }
@@ -349,9 +350,21 @@ export async function getDiaryById(diaryId: string, userId: string): Promise<Dia
     lastEditedBy: d.last_edited_by,
     editors,
     unreadEdits: Math.max(0, layers.length - ((readRow as { read_layer_count: number } | null)?.read_layer_count || 0)),
+    isPinned: d.is_pinned ?? false,
     createdAt: d.created_at,
     lastEditedAt: d.last_edited_at,
   }
+}
+
+// ===== 핀 고정/해제 =====
+
+export async function togglePin(diaryId: string, isPinned: boolean): Promise<void> {
+  const supabase = createClient()
+  const { error } = await supabase
+    .from('diaries')
+    .update({ is_pinned: isPinned })
+    .eq('id', diaryId)
+  if (error) throw new Error(`핀 변경 실패: ${error.message}`)
 }
 
 // ===== 일기 저장 =====

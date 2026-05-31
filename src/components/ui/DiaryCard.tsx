@@ -7,10 +7,11 @@ import { getUserById, getInitial, getAvatarStyle } from '@/features/diary/mockDa
 type DiaryCardProps = {
   diary: Diary
   onClick?: () => void
-  onDelete?: () => void  // 삭제 가능한 경우에만 전달 (본인이 만든 일기일 때)
+  onDelete?: () => void   // 삭제 가능한 경우에만 전달 (본인이 만든 일기일 때)
+  onTogglePin?: () => void
 }
 
-export default function DiaryCard({ diary, onClick, onDelete }: DiaryCardProps) {
+export default function DiaryCard({ diary, onClick, onDelete, onTogglePin }: DiaryCardProps) {
   const hasUnread = diary.unreadEdits > 0
   const lastEditorAvatar = getAvatarStyle(diary.lastEditedBy)
 
@@ -57,8 +58,8 @@ export default function DiaryCard({ diary, onClick, onDelete }: DiaryCardProps) 
         </div>
       )}
 
-      {/* ⋯ 메뉴 버튼 — onDelete가 있을 때만 표시 (본인이 만든 일기) */}
-      {onDelete && (
+      {/* ⋯ 메뉴 버튼 — 핀 또는 삭제 옵션이 있을 때 표시 */}
+      {(onDelete || onTogglePin) && (
         <div ref={menuRef} className="absolute top-2 right-2 z-10">
           <button
             onClick={(e) => {
@@ -73,18 +74,33 @@ export default function DiaryCard({ diary, onClick, onDelete }: DiaryCardProps) 
 
           {/* 드롭다운 메뉴 */}
           {menuOpen && (
-            <div className="absolute top-10 right-0 bg-paper-50 rounded-xl shadow-lg border border-paper-200 overflow-hidden min-w-[120px]">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setMenuOpen(false)
-                  onDelete()
-                }}
-                className="w-full px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition text-left flex items-center gap-2"
-              >
-                <span>🗑️</span>
-                <span>삭제하기</span>
-              </button>
+            <div className="absolute top-10 right-0 bg-paper-50 rounded-xl shadow-lg border border-paper-200 overflow-hidden min-w-[130px]">
+              {onTogglePin && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setMenuOpen(false)
+                    onTogglePin()
+                  }}
+                  className="w-full px-4 py-2.5 text-sm text-ink-800 hover:bg-paper-100 transition text-left flex items-center gap-2"
+                >
+                  <span>{diary.isPinned ? '📌' : '📍'}</span>
+                  <span>{diary.isPinned ? '고정 해제' : '상단 고정'}</span>
+                </button>
+              )}
+              {onDelete && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setMenuOpen(false)
+                    onDelete()
+                  }}
+                  className="w-full px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition text-left flex items-center gap-2 border-t border-paper-100"
+                >
+                  <span>🗑️</span>
+                  <span>삭제하기</span>
+                </button>
+              )}
             </div>
           )}
         </div>
