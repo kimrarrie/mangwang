@@ -23,6 +23,16 @@ async function loadImage(src: string): Promise<HTMLImageElement> {
 
 // ===== PDF 내보내기 =====
 
+// 나눔고딕 TTF를 jsDelivr CDN에서 받아 jsPDF에 등록 (한글 지원)
+async function registerKoreanFont(pdf: InstanceType<typeof import('jspdf').default>) {
+  const url = 'https://cdn.jsdelivr.net/gh/google/fonts/ofl/nanumgothic/NanumGothic-Regular.ttf'
+  const res = await fetch(url)
+  const buffer = await res.arrayBuffer()
+  const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)))
+  pdf.addFileToVFS('NanumGothic-Regular.ttf', base64)
+  pdf.addFont('NanumGothic-Regular.ttf', 'NanumGothic', 'normal')
+}
+
 export async function exportAllToPDF(
   diaries: Diary[],
   onProgress?: (p: ExportProgress) => void
@@ -32,6 +42,9 @@ export async function exportAllToPDF(
   const W = 430
   const H = 932
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'px', format: [W, H], compress: true })
+
+  // 한글 폰트 등록 (내보내기 시 1회 다운로드 ~300KB)
+  await registerKoreanFont(pdf)
 
   let globalLayer = 0
   const totalLayers = diaries.reduce((s, d) => s + Math.max(d.layers.length, 1), 0)
@@ -61,11 +74,10 @@ export async function exportAllToPDF(
     pdf.setGState(pdf.GState({ opacity: 1 }))
     pdf.setTextColor(255, 255, 255)
     pdf.setFontSize(20)
-    pdf.setFont('helvetica', 'bold')
-    try { pdf.text(diary.title, 20, H - 60) } catch { pdf.text('diary', 20, H - 60) }
+    pdf.setFont('NanumGothic', 'normal')
+    pdf.text(diary.title, 20, H - 60)
     const date = new Date(diary.createdAt)
     pdf.setFontSize(13)
-    pdf.setFont('helvetica', 'normal')
     pdf.setTextColor(200, 200, 200)
     pdf.text(`${date.getFullYear()}.${date.getMonth() + 1}.${date.getDate()}`, 20, H - 38)
   }
@@ -141,7 +153,32 @@ export async function exportSelectedToVideo(
 ): Promise<void> {
   // WebCodecs 지원 체크
   if (typeof VideoEncoder === 'undefined') {
-    alert('이 브라우저는 영상 내보내기를 지원하지 않아요.\nChrome 또는 Safari 16.4+ 를 사용해주세요.')
+    alert('이 브라우저는 영상 내보내기를 지원하지 않아요.\nChrome 94+ 또는 Safari 16.4+ 를 사용해주세요.')
+    return
+  }
+
+  // 지원하는 H.264 코덱 프로파일 순서대로 시도
+  const CODEC_CANDIDATES = [
+    'avc1.640034',  // H.264 High Profile Level 5.2
+    'avc1.4D0034',  // H.264 Main Profile Level 5.2
+    'avc1.42E034',  // H.264 Baseline Level 5.2
+    'avc1.42001E',  // H.264 Baseline Level 3.0 (가장 넓은 호환성)
+  ]
+
+  let supportedCodec = ''
+  for (const codec of CODEC_CANDIDATES) {
+    const support = await VideoEncoder.isConfigSupported({
+      codec,
+      width: VIDEO_W,
+      height: VIDEO_H,
+      bitrate: 8_000_000,
+      framerate: FPS,
+    })
+    if (support.supported) { supportedCodec = codec; break }
+  }
+
+  if (!supportedCodec) {
+    alert('이 브라우저에서 지원하는 H.264 코덱을 찾지 못했어요.\nChrome 최신 버전을 사용해주세요.')
     return
   }
 
@@ -159,7 +196,7 @@ export async function exportSelectedToVideo(
   })
 
   encoder.configure({
-    codec: 'avc1.4D001F',        // H.264 Main Profile Level 3.1
+    codec: supportedCodec,
     width: VIDEO_W,
     height: VIDEO_H,
     bitrate: 8_000_000,
