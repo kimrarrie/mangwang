@@ -32,25 +32,28 @@ function drawPdfOverlay(ctx: CanvasRenderingContext2D, diary: Diary, W: number, 
   const date = new Date(diary.createdAt)
   const dateStr = `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')}`
 
+  // 해상도에 따라 폰트/간격 스케일 (기준: 430px 너비)
+  const s = W / 430
+
   // 하단 그라디언트
-  const grad = ctx.createLinearGradient(0, H - 220, 0, H)
+  const grad = ctx.createLinearGradient(0, H - 220 * s, 0, H)
   grad.addColorStop(0, 'rgba(0,0,0,0)')
   grad.addColorStop(0.35, 'rgba(0,0,0,0.55)')
   grad.addColorStop(1, 'rgba(0,0,0,0.78)')
   ctx.fillStyle = grad
-  ctx.fillRect(0, H - 220, W, 220)
+  ctx.fillRect(0, H - 220 * s, W, 220 * s)
 
   ctx.textAlign = 'left'
 
   // 제목
   ctx.fillStyle = 'rgba(255,255,255,0.95)'
-  ctx.font = `bold 22px sans-serif`
-  ctx.fillText(diary.title, 20, H - 110, W - 40)
+  ctx.font = `bold ${Math.round(22 * s)}px sans-serif`
+  ctx.fillText(diary.title, 20 * s, H - 110 * s, W - 40 * s)
 
   // 날짜
   ctx.fillStyle = 'rgba(255,255,255,0.55)'
-  ctx.font = `14px sans-serif`
-  ctx.fillText(dateStr, 20, H - 80)
+  ctx.font = `${Math.round(14 * s)}px sans-serif`
+  ctx.fillText(dateStr, 20 * s, H - 80 * s)
 
   // 작성자 정보
   const authorParts: string[] = []
@@ -59,8 +62,8 @@ function drawPdfOverlay(ctx: CanvasRenderingContext2D, diary: Diary, W: number, 
   if (diary.layers.length > 1) authorParts.push(`총 ${diary.layers.length}레이어`)
 
   ctx.fillStyle = 'rgba(255,255,255,0.65)'
-  ctx.font = `13px sans-serif`
-  ctx.fillText(authorParts.join('  ·  '), 20, H - 52)
+  ctx.font = `${Math.round(13 * s)}px sans-serif`
+  ctx.fillText(authorParts.join('  ·  '), 20 * s, H - 52 * s)
 }
 
 export async function exportSelectedToPDF(
@@ -69,8 +72,9 @@ export async function exportSelectedToPDF(
 ): Promise<void> {
   const { default: jsPDF } = await import('jspdf')
 
-  const W = 430
-  const H = 932
+  const SCALE = 2.5
+  const W = Math.round(430 * SCALE)   // 1075
+  const H = Math.round(932 * SCALE)   // 2330
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'px', format: [W, H], compress: true })
 
   let globalLayer = 0
