@@ -16,6 +16,7 @@ export type CanvasHandle = {
   setBackgroundColor: (color: string) => void
   toJSON: () => string
   toDataURL: () => Promise<string | null>
+  toThumbDataURL: () => Promise<string | null>     // 홈 카드용 합성 썸네일 (덧붙임 레이어용)
   hasContent: () => boolean              // 캔버스에 오브젝트가 있는지 확인
   getTextContent: () => string           // 캔버스 내 텍스트 내용 추출
   getImageCount: () => number            // 캔버스에 추가된 이미지 개수
@@ -450,47 +451,53 @@ const DiaryCanvas = forwardRef<CanvasHandle, DiaryCanvasProps>(
           return fabricRef.current?.toDataURL({ format: 'jpeg', quality: EXPORT_QUALITY, multiplier: EXPORT_SCALE }) ?? null
         }
 
-        // 배경 레이어가 있으면: 모든 레이어 + Fabric 캔버스를 합성해서 내보내기
-        // (숨김 상태와 무관하게 저장 시에는 전체 레이어 포함)
-        const container = containerRef.current
-        const width = container?.clientWidth || 430
-        const height = container?.clientHeight || 750
+        // 덧붙임: 현재 그린 내용만 투명 PNG로 저장
+        // 배경 레이어는 이미 DB에 URL로 저장되어 있으므로 재합성/재압축 불필요
+        // → 레이어가 쌓여도 화질 열화 없음
+        return fabricRef.current.toDataURL({ format: 'png', quality: 1, multiplier: EXPORT_SCALE }) ?? null
+      },
 
-        // 내보낼 캔버스는 2배 크기 (선명도 향상)
-        const exportCanvas = document.createElement('canvas')
-        exportCanvas.width = width * EXPORT_SCALE
-        exportCanvas.height = height * EXPORT_SCALE
-        const ctx = exportCanvas.getContext('2d')
+      // 홈 카드용 합성 썸네일 — 덧붙임 레이어는 투명 PNG라 단독으로 썸네일 부적합
+      // 모든 배경 레이어 + 현재 드로잉을 300px 너비로 합성해서 반환
+      toThumbDataURL: async () => {
+        if (!fabricRef.current) return null
+
+        const THUMB_W = 300
+        const fw = fabricRef.current.width
+        const fh = fabricRef.current.height
+        const scale = THUMB_W / fw
+
+        if (!hasBgLayers) {
+          return fabricRef.current.toDataURL({ format: 'jpeg', quality: 0.72, multiplier: scale }) ?? null
+        }
+
+        const thumbCanvas = document.createElement('canvas')
+        thumbCanvas.width = THUMB_W
+        thumbCanvas.height = Math.round(fh * scale)
+        const ctx = thumbCanvas.getContext('2d')
         if (!ctx) return null
-
-        // 이미지 스무딩 품질을 최대로 설정
         ctx.imageSmoothingEnabled = true
         ctx.imageSmoothingQuality = 'high'
 
-        // 이미지 로드 헬퍼 (HTTP URL도 비동기로 안전하게 로드)
         const loadImage = (src: string): Promise<HTMLImageElement> =>
           new Promise((resolve) => {
             const img = new Image()
             img.crossOrigin = 'anonymous'
             img.onload = () => resolve(img)
-            img.onerror = () => resolve(img) // 실패해도 빈칸으로 계속 진행
+            img.onerror = () => resolve(img)
             img.src = src
           })
 
-        // 1) 모든 배경 레이어를 비동기로 로드 후 순서대로 그리기 (2배 크기로)
-        const images = await Promise.all(backgroundLayers!.map(loadImage))
-        for (const img of images) {
-          ctx.drawImage(img, 0, 0, width * EXPORT_SCALE, height * EXPORT_SCALE)
+        const bgImages = await Promise.all(backgroundLayers!.map(loadImage))
+        for (const img of bgImages) {
+          ctx.drawImage(img, 0, 0, thumbCanvas.width, thumbCanvas.height)
         }
 
-        // 2) Fabric 캔버스 내용을 PNG (투명도 보존)로 중간 합성 후 위에 그리기
-        // 최종 exportCanvas만 JPEG로 출력하므로 중간 단계는 PNG 유지
-        const fabricDataUrl = fabricRef.current.toDataURL({ format: 'png', quality: 1, multiplier: EXPORT_SCALE })
+        const fabricDataUrl = fabricRef.current.toDataURL({ format: 'png', quality: 1, multiplier: scale })
         const fabricImg = await loadImage(fabricDataUrl)
-        ctx.drawImage(fabricImg, 0, 0, width * EXPORT_SCALE, height * EXPORT_SCALE)
+        ctx.drawImage(fabricImg, 0, 0, thumbCanvas.width, thumbCanvas.height)
 
-        // 3) 최종 출력을 JPEG로 — 배경이 불투명하게 채워진 상태이므로 손실 없음
-        return exportCanvas.toDataURL(EXPORT_FORMAT, EXPORT_QUALITY)
+        return thumbCanvas.toDataURL('image/jpeg', 0.6)
       },
     }))
 

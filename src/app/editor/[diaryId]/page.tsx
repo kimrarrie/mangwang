@@ -231,11 +231,16 @@ export default function EditorPage() {
       return
     }
 
+    // 덧붙임 레이어는 투명 PNG라 썸네일 단독 생성 불가 — 합성 썸네일 별도 생성
+    const compositeThumb = (!isNew && existingDiary)
+      ? (await canvasRef.current.toThumbDataURL()) ?? undefined
+      : undefined
+
     try {
       if (isNew) {
         await createDiary(saveTitle, imageData, user.id)
       } else if (existingDiary) {
-        await appendLayer(existingDiary.id, imageData, user.id, existingDiary.layers.length)
+        await appendLayer(existingDiary.id, imageData, user.id, existingDiary.layers.length, compositeThumb)
       }
       router.push('/')
     } catch (err) {
@@ -295,7 +300,7 @@ export default function EditorPage() {
               className="font-handwriting text-lg text-white text-center bg-transparent border-b border-white/30 focus:border-white/60 outline-none px-2 py-1 w-40"
             />
           ) : (
-            <button onClick={() => setIsEditingTitle(true)} className="font-handwriting text-lg text-white/90">
+            <button onClick={() => setIsEditingTitle(true)} className="font-handwriting text-lg text-white/90 truncate max-w-[180px]">
               {title}
             </button>
           )}
@@ -303,7 +308,7 @@ export default function EditorPage() {
           <button
             onClick={handleSave}
             disabled={isSaving || !hasCanvasContent}
-            className="text-sm font-bold px-4 py-2 rounded-full bg-white text-ink-800 hover:bg-white/90 disabled:opacity-30 disabled:cursor-not-allowed transition"
+            className="text-sm font-bold px-4 py-2 rounded-full bg-white text-ink-800 hover:bg-white/90 disabled:opacity-30 disabled:cursor-not-allowed transition shrink-0 whitespace-nowrap"
           >
             {isSaving ? '...' : '완료'}
           </button>

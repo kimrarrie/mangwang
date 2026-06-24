@@ -417,12 +417,13 @@ export async function appendLayer(
   diaryId: string,
   imageDataUrl: string,
   userId: string,
-  currentLayerCount: number
+  currentLayerCount: number,
+  compositeThumbDataUrl?: string  // 덧붙임은 투명 PNG라 에디터에서 합성 썸네일을 별도 전달
 ): Promise<void> {
   const supabase = createClient()
 
-  // 원본 + 썸네일 병렬 업로드
-  const thumbDataUrl = await generateThumbnail(imageDataUrl)
+  // 썸네일: 합성본이 있으면 그걸 사용, 없으면 원본에서 생성 (새 일기 fallback)
+  const thumbDataUrl = compositeThumbDataUrl ?? await generateThumbnail(imageDataUrl)
   const [imagePath] = await Promise.all([
     uploadCanvasImage(imageDataUrl, userId),
     uploadCanvasImage(thumbDataUrl, userId, true),
