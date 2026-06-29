@@ -82,14 +82,15 @@ async function generateThumbnail(dataUrl: string): Promise<string> {
 // Canvas 이미지를 Supabase Storage에 업로드
 // 반환값: 저장 경로 (예: "user-uuid/1714000000000.png")
 // isThumb=true 이면 파일명에 _thumb 접미사 붙여 저장 (e.g. 1714000000000_thumb.jpg)
-export async function uploadCanvasImage(dataUrl: string, userId: string, isThumb = false): Promise<string> {
+export async function uploadCanvasImage(dataUrl: string, userId: string, isThumb = false, timestamp?: number): Promise<string> {
   const supabase = createClient()
   const blob = dataUrlToBlob(dataUrl)
   const mimeMatch = dataUrl.match(/^data:(image\/\w+);/)
   const mime = mimeMatch ? mimeMatch[1] : 'image/png'
   const ext = mime === 'image/jpeg' ? 'jpg' : 'png'
   const suffix = isThumb ? '_thumb' : ''
-  const path = `${userId}/${Date.now()}${suffix}.${ext}`
+  const ts = timestamp ?? Date.now()
+  const path = `${userId}/${ts}${suffix}.${ext}`
 
   const { error } = await supabase.storage
     .from('diary-images')
@@ -390,11 +391,12 @@ export async function createDiary(
 ): Promise<string | null> {
   const supabase = createClient()
 
-  // 원본 + 썸네일 병렬 업로드
+  // 원본 + 썸네일 병렬 업로드 — 같은 타임스탬프로 경로 일치 보장
   const thumbDataUrl = await generateThumbnail(imageDataUrl)
+  const ts = Date.now()
   const [imagePath] = await Promise.all([
-    uploadCanvasImage(imageDataUrl, userId),
-    uploadCanvasImage(thumbDataUrl, userId, true),
+    uploadCanvasImage(imageDataUrl, userId, false, ts),
+    uploadCanvasImage(thumbDataUrl, userId, true, ts),
   ])
 
   const { data: diary, error: diaryError } = await supabase
@@ -423,10 +425,12 @@ export async function appendLayer(
   const supabase = createClient()
 
   // 썸네일: 합성본이 있으면 그걸 사용, 없으면 원본에서 생성 (새 일기 fallback)
+  // 같은 타임스탬프로 경로 일치 보장 — getSortedDiaries의 _thumb.jpg 파생 로직과 맞춤
   const thumbDataUrl = compositeThumbDataUrl ?? await generateThumbnail(imageDataUrl)
+  const ts = Date.now()
   const [imagePath] = await Promise.all([
-    uploadCanvasImage(imageDataUrl, userId),
-    uploadCanvasImage(thumbDataUrl, userId, true),
+    uploadCanvasImage(imageDataUrl, userId, false, ts),
+    uploadCanvasImage(thumbDataUrl, userId, true, ts),
   ])
 
   const { error: layerError } = await supabase.from('diary_layers').insert({
