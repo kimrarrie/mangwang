@@ -36,6 +36,11 @@ type DiaryCanvasProps = {
   onObjectMoveEnd?: () => void
 }
 
+// 모든 레이어가 동일한 크기로 저장되어야 object-fill 표시 시 좌표가 정확히 일치함
+// 기기/세션마다 뷰포트 높이가 달라지므로 고정값 사용 (9:16 portrait 기준)
+const CANVAS_W = 430
+const CANVAS_H = 760
+
 const DiaryCanvas = forwardRef<CanvasHandle, DiaryCanvasProps>(
   function DiaryCanvas({ initialData, backgroundColor = '#fefcf8', backgroundLayers, hiddenLayerIndices, onCanvasReady, onSelectionChange, onContentChange, onObjectMove, onObjectMoveEnd }, ref) {
     const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -74,8 +79,10 @@ const DiaryCanvas = forwardRef<CanvasHandle, DiaryCanvasProps>(
 
         const container = containerRef.current
         if (!container) return
-        const width = container.clientWidth || 430
-        const height = container.clientHeight || 750
+        // 고정 캔버스 크기 — 기기/세션마다 뷰포트 높이가 달라도 모든 레이어가
+        // 동일한 픽셀 크기로 저장되어야 object-fill 표시 시 좌표가 정확히 일치함
+        const width = Math.min(container.clientWidth || CANVAS_W, CANVAS_W)
+        const height = CANVAS_H
 
         // 배경 레이어가 있으면 Fabric 캔버스 자체는 투명
         const canvasBg = hasBgLayers ? null : backgroundColor
@@ -509,8 +516,11 @@ const DiaryCanvas = forwardRef<CanvasHandle, DiaryCanvasProps>(
             key={index}
             src={layerUrl}
             alt=""
-            className="absolute inset-0 w-full h-full object-fill pointer-events-none"
+            className="absolute top-0 left-0 pointer-events-none"
             style={{
+              width: CANVAS_W,
+              height: CANVAS_H,
+              objectFit: 'fill',
               zIndex: index,
               opacity: hiddenLayerIndices?.has(index) ? 0 : 1,
               transition: 'opacity 0.2s ease',
