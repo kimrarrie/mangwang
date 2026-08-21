@@ -52,6 +52,7 @@ export default function EditorPage() {
   }, [existingDiary])
 
   const [isSaving, setIsSaving] = useState(false)
+  const [showExitConfirm, setShowExitConfirm] = useState(false)
   const [title, setTitle] = useState('')
   const [isEditingTitle, setIsEditingTitle] = useState(isNew)
   const [toolMode, setToolMode] = useState<ToolMode>('none')
@@ -278,7 +279,10 @@ export default function EditorPage() {
         {/* 상단 바 */}
         <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-3 py-2 bg-gradient-to-b from-black/40 to-transparent">
           <button
-            onClick={() => router.push('/')}
+            onClick={() => {
+              if (hasCanvasContent) setShowExitConfirm(true)
+              else router.push('/')
+            }}
             className="text-white/80 hover:text-white text-xl w-10 h-10 flex items-center justify-center"
           >
             ✕
@@ -310,7 +314,7 @@ export default function EditorPage() {
             disabled={isSaving || !hasCanvasContent}
             className="text-sm font-bold px-4 py-2 rounded-full bg-white text-ink-800 hover:bg-white/90 disabled:opacity-30 disabled:cursor-not-allowed transition shrink-0 whitespace-nowrap"
           >
-            {isSaving ? '...' : '완료'}
+            {isSaving ? '저장 중…' : '완료'}
           </button>
         </div>
 
@@ -354,6 +358,9 @@ export default function EditorPage() {
 
           {/* 레이어 히스토리 패널 — 우측 하단, 밝은 반투명 */}
           {showLayerPanel && existingDiary && (
+            <>
+              {/* 외부 클릭 감지용 오버레이 */}
+              <div className="absolute inset-0 z-20" onClick={() => setShowLayerPanel(false)} />
             <div className="absolute bottom-16 right-2 z-30 w-52 bg-white/60 backdrop-blur-xl rounded-2xl shadow-lg border border-white/40 overflow-hidden">
               <div className="px-3 py-2 border-b border-[#2a241b]/10">
                 <p className="text-[11px] font-bold text-[#2a241b]/70">히스토리</p>
@@ -400,6 +407,7 @@ export default function EditorPage() {
                 })}
               </div>
             </div>
+            </>
           )}
 
           <EditorToolbar
@@ -463,6 +471,36 @@ export default function EditorPage() {
                   className="flex-1 py-3.5 text-sm font-bold text-ink-800 hover:bg-paper-100 transition border-l border-paper-200 disabled:opacity-30"
                 >
                   확인
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 나가기 확인 모달 */}
+        {showExitConfirm && (
+          <div className="absolute inset-0 z-50 bg-black/50 flex items-center justify-center px-6">
+            <div className="bg-paper-50 rounded-2xl shadow-2xl w-full max-w-xs overflow-hidden">
+              <div className="px-5 pt-5 pb-3">
+                <p className="font-handwriting text-lg text-ink-800 font-bold text-center mb-2">
+                  나가시겠어요?
+                </p>
+                <p className="text-xs text-ink-700/50 text-center leading-relaxed">
+                  작성 중인 내용이 저장되지 않아요.
+                </p>
+              </div>
+              <div className="flex border-t border-paper-200">
+                <button
+                  onClick={() => setShowExitConfirm(false)}
+                  className="flex-1 py-3.5 text-sm text-ink-700/60 hover:bg-paper-100 transition"
+                >
+                  계속 작성
+                </button>
+                <button
+                  onClick={() => router.push('/')}
+                  className="flex-1 py-3.5 text-sm font-bold text-red-500 hover:bg-red-50 transition border-l border-paper-200"
+                >
+                  나가기
                 </button>
               </div>
             </div>
