@@ -39,7 +39,7 @@ type DiaryCanvasProps = {
 // 모든 레이어가 동일한 크기로 저장되어야 object-fill 표시 시 좌표가 정확히 일치함
 // 기기/세션마다 뷰포트 높이가 달라지므로 고정값 사용 (9:16 portrait 기준)
 const CANVAS_W = 430
-const CANVAS_H = 760
+const CANVAS_H = 660
 
 const DiaryCanvas = forwardRef<CanvasHandle, DiaryCanvasProps>(
   function DiaryCanvas({ initialData, backgroundColor = '#fefcf8', backgroundLayers, hiddenLayerIndices, onCanvasReady, onSelectionChange, onContentChange, onObjectMove, onObjectMoveEnd }, ref) {
